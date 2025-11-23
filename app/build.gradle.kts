@@ -88,14 +88,37 @@ dependencies {
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
 
-    // Testing
+    // Testing - Unit Tests
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.truth)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
+    testImplementation(libs.androidx.arch.core.testing)
+    testImplementation(libs.robolectric)
+
+    // Testing - Instrumented Tests
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.mockk.android)
+    androidTestImplementation(libs.truth)
+    androidTestImplementation(libs.kotlinx.coroutines.test)
+    androidTestImplementation(libs.androidx.arch.core.testing)
+
+    // Room Testing
+    androidTestImplementation(libs.room.testing)
+
+    // Hilt Testing
+    testImplementation(libs.hilt.android.testing)
+    kspTest(libs.hilt.android.compiler.testing)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.android.compiler.testing)
+
+    // Compose Testing
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // Debug
     debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

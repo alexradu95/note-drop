@@ -32,7 +32,15 @@ splashScreen = "1.0.1"
 glance = "1.1.1"
 
 # KSP
-ksp = "2.0.21-1.0.29"
+ksp = "2.0.21-1.0.28"
+
+# Testing
+mockk = "1.13.13"
+turbine = "1.1.0"
+truth = "1.4.4"
+coroutinesTest = "1.9.0"
+robolectric = "4.13"
+hiltTesting = "2.52"
 
 [libraries]
 # Core Android
@@ -84,10 +92,32 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 
+# Unit Testing
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+truth = { group = "com.google.truth", name = "truth", version.ref = "truth" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+
+# Room Testing
+room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+
+# Hilt Testing
+hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hiltTesting" }
+hilt-android-compiler-testing = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hiltTesting" }
+
+# Compose Testing
+androidx-compose-ui-test-junit4-android = { group = "androidx.compose.ui", name = "ui-test-junit4-android", version = "1.7.6" }
+
+# Architecture Components Testing
+androidx-arch-core-testing = { group = "androidx.arch.core", name = "core-testing", version = "2.2.0" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+jacoco = { id = "org.gradle.jacoco", version = "0.8.12" }
 
