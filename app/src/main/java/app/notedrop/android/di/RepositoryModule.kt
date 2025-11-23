@@ -1,5 +1,7 @@
 package app.notedrop.android.di
 
+import app.notedrop.android.data.provider.NoteProvider
+import app.notedrop.android.data.provider.ObsidianProvider
 import app.notedrop.android.data.repository.NoteRepositoryImpl
 import app.notedrop.android.data.repository.TemplateRepositoryImpl
 import app.notedrop.android.data.repository.VaultRepositoryImpl
@@ -36,4 +38,10 @@ abstract class RepositoryModule {
     abstract fun bindTemplateRepository(
         templateRepositoryImpl: TemplateRepositoryImpl
     ): TemplateRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindNoteProvider(
+        obsidianProvider: ObsidianProvider
+    ): NoteProvider
 }

@@ -2,7 +2,7 @@ package app.notedrop.android.ui.capture
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.notedrop.android.data.provider.ObsidianProvider
+import app.notedrop.android.data.provider.NoteProvider
 import app.notedrop.android.data.voice.RecordingState
 import app.notedrop.android.data.voice.VoiceRecorder
 import app.notedrop.android.domain.model.Note
@@ -33,7 +33,7 @@ class QuickCaptureViewModel @Inject constructor(
     private val vaultRepository: VaultRepository,
     private val templateRepository: TemplateRepository,
     private val voiceRecorder: VoiceRecorder,
-    private val obsidianProvider: ObsidianProvider
+    private val noteProvider: NoteProvider
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuickCaptureUiState())
@@ -154,9 +154,9 @@ class QuickCaptureViewModel @Inject constructor(
             val result = noteRepository.createNote(note)
 
             result.onSuccess { savedNote ->
-                // Sync to Obsidian if configured
-                if (obsidianProvider.isAvailable(vault)) {
-                    obsidianProvider.saveNote(savedNote, vault)
+                // Sync to provider if configured
+                if (noteProvider.isAvailable(vault)) {
+                    noteProvider.saveNote(savedNote, vault)
                 }
 
                 _uiState.value = QuickCaptureUiState(

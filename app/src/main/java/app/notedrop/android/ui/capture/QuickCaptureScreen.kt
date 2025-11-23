@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.notedrop.android.data.voice.RecordingState
 import app.notedrop.android.domain.model.Template
+import app.notedrop.android.util.rememberAudioPermissionState
 
 /**
  * Quick Capture screen for creating notes.
@@ -29,6 +30,7 @@ fun QuickCaptureScreen(
     val uiState by viewModel.uiState.collectAsState()
     val templates by viewModel.templates.collectAsState()
     val recordingState by viewModel.recordingState.collectAsState()
+    val audioPermissionState = rememberAudioPermissionState()
 
     // Navigate back when note is saved
     LaunchedEffect(uiState.noteSaved) {
@@ -67,7 +69,13 @@ fun QuickCaptureScreen(
             FloatingActionButton(
                 onClick = {
                     when (recordingState) {
-                        is RecordingState.Idle -> viewModel.startRecording()
+                        is RecordingState.Idle -> {
+                            if (audioPermissionState.isGranted) {
+                                viewModel.startRecording()
+                            } else {
+                                audioPermissionState.requestPermission()
+                            }
+                        }
                         is RecordingState.Recording -> viewModel.stopRecording()
                         else -> {}
                     }

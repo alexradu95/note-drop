@@ -1,5 +1,8 @@
 package app.notedrop.android.util
 
+import app.notedrop.android.data.provider.NoteProvider
+import app.notedrop.android.data.provider.ProviderCapabilities
+import app.notedrop.android.data.voice.RecordingState
 import app.notedrop.android.domain.model.Note
 import app.notedrop.android.domain.model.Template
 import app.notedrop.android.domain.model.Vault
@@ -8,6 +11,8 @@ import app.notedrop.android.domain.repository.TemplateRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
 
@@ -242,5 +247,105 @@ class FakeTemplateRepository : TemplateRepository {
 
     fun clear() {
         templates.value = emptyList()
+    }
+}
+
+/**
+ * Fake implementation of VoiceRecorder for testing.
+ */
+class FakeVoiceRecorder {
+    private val _recordingState = MutableStateFlow<RecordingState>(RecordingState.Idle)
+    val recordingState: StateFlow<RecordingState> = _recordingState.asStateFlow()
+
+    private val _recordingDuration = MutableStateFlow(0L)
+    val recordingDuration: StateFlow<Long> = _recordingDuration.asStateFlow()
+
+    private var recordingFilePath: String? = null
+
+    fun startRecording(): Result<String> {
+        recordingFilePath = "/test/recording_${System.currentTimeMillis()}.m4a"
+        _recordingState.value = RecordingState.Recording(recordingFilePath!!)
+        return Result.success(recordingFilePath!!)
+    }
+
+    fun stopRecording(): Result<String> {
+        val path = recordingFilePath ?: return Result.failure(Exception("No recording in progress"))
+        _recordingState.value = RecordingState.Idle
+        return Result.success(path)
+    }
+
+    fun cancelRecording(): Result<Unit> {
+        recordingFilePath = null
+        _recordingState.value = RecordingState.Idle
+        return Result.success(Unit)
+    }
+
+    fun pauseRecording(): Result<Unit> {
+        _recordingState.value = RecordingState.Paused
+        return Result.success(Unit)
+    }
+
+    fun resumeRecording(): Result<Unit> {
+        val path = recordingFilePath ?: return Result.failure(Exception("No recording to resume"))
+        _recordingState.value = RecordingState.Recording(path)
+        return Result.success(Unit)
+    }
+
+    // Test helper
+    fun reset() {
+        _recordingState.value = RecordingState.Idle
+        _recordingDuration.value = 0L
+        recordingFilePath = null
+    }
+}
+
+/**
+ * Fake implementation of NoteProvider for testing.
+ */
+class FakeNoteProvider : NoteProvider {
+    private val savedNotes = mutableMapOf<String, Note>()
+    var shouldFail = false
+    var isAvailableResult = true
+
+    override suspend fun saveNote(note: Note, vault: Vault): Result<Unit> {
+        return if (shouldFail) {
+            Result.failure(Exception("Save failed"))
+        } else {
+            savedNotes[note.id] = note
+            Result.success(Unit)
+        }
+    }
+
+    override suspend fun loadNote(noteId: String, vault: Vault): Result<Note> {
+        return savedNotes[noteId]?.let {
+            Result.success(it)
+        } ?: Result.failure(Exception("Note not found"))
+    }
+
+    override suspend fun deleteNote(noteId: String, vault: Vault): Result<Unit> {
+        savedNotes.remove(noteId)
+        return Result.success(Unit)
+    }
+
+    override suspend fun isAvailable(vault: Vault): Boolean {
+        return isAvailableResult
+    }
+
+    override fun getCapabilities(): ProviderCapabilities {
+        return ProviderCapabilities(
+            supportsVoiceRecordings = true,
+            supportsImages = true,
+            supportsTags = true,
+            supportsMetadata = true
+        )
+    }
+
+    // Test helpers
+    fun getSavedNotes(): List<Note> = savedNotes.values.toList()
+
+    fun clear() {
+        savedNotes.clear()
+        shouldFail = false
+        isAvailableResult = true
     }
 }
