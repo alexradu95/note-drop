@@ -15,17 +15,21 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.notedrop.android.data.voice.RecordingState
 import app.notedrop.android.domain.model.Template
+import app.notedrop.android.ui.widget.CaptureType
 import app.notedrop.android.util.rememberAudioPermissionState
 
 /**
  * Quick Capture screen for creating notes.
+ *
+ * @param initialCaptureType Optional capture type from widget (TEXT, VOICE, CAMERA)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickCaptureScreen(
     onNavigateBack: () -> Unit,
     onNoteSaved: () -> Unit,
-    viewModel: QuickCaptureViewModel = hiltViewModel()
+    viewModel: QuickCaptureViewModel = hiltViewModel(),
+    initialCaptureType: CaptureType? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val templates by viewModel.templates.collectAsState()

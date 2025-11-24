@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">NoteDrop</string>
+
+    <!-- Widget strings -->
+    <string name="widget_quick_capture_label">Quick Capture</string>
+    <string name="widget_quick_capture_description">Quickly capture notes, voice recordings, or photos</string>
+    <string name="widget_loading">Loading…</string>
+    <string name="widget_action_text">Quick Note</string>
+    <string name="widget_action_voice">Voice Note</string>
+    <string name="widget_action_camera">Camera</string>
 </resources>

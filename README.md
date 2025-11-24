@@ -23,6 +23,7 @@ NoteDrop is a modern, beautiful note-taking app built with Material You design, 
 - Template system (Quick Capture, Daily Note, Meeting Note)
 - Tag support for organization
 - Title and content fields
+- **Home Screen Widgets** - Quick capture from your home screen 🆕
 
 ### 🎤 **Voice Recording**
 - Record voice notes with one tap
@@ -234,8 +235,8 @@ All permissions are requested at runtime when needed.
 - [x] Search & filtering
 
 ### Phase 2: Enhanced Features (Next)
+- [x] Home screen widget (Glance) ✅
 - [ ] Voice transcription (Whisper model)
-- [ ] Home screen widget (Glance)
 - [ ] Note editing screen
 - [ ] Rich text editor
 - [ ] Image attachments

@@ -1,0 +1,331 @@
+{
+  "project": {
+    "name": "NoteDrop",
+    "version": "1.0.0",
+    "generated": "2025-11-24",
+    "platform": "Android",
+    "minSdk": 31,
+    "targetSdk": 35,
+    "language": "Kotlin",
+    "namespace": "app.notedrop.android"
+  },
+  "entryPoints": {
+    "mainActivity": {
+      "path": "app/src/main/java/app/notedrop/android/MainActivity.kt",
+      "purpose": "Entry point, Hilt activity, Compose setup",
+      "navigation": "Bottom navigation (Home, Quick Capture, Settings)"
+    },
+    "application": {
+      "path": "app/src/main/java/app/notedrop/android/NoteDropApplication.kt",
+      "purpose": "Hilt application class, app initialization"
+    },
+    "database": {
+      "path": "app/src/main/java/app/notedrop/android/data/local/NoteDropDatabase.kt",
+      "entities": ["NoteEntity", "VaultEntity", "TemplateEntity"],
+      "version": 1,
+      "schemaLocation": "app/schemas/"
+    }
+  },
+  "architecture": {
+    "pattern": "Clean Architecture + MVVM",
+    "layers": {
+      "presentation": {
+        "path": "app/src/main/java/app/notedrop/android/ui/",
+        "framework": "Jetpack Compose",
+        "components": ["QuickCaptureScreen", "HomeScreen", "SettingsScreen"]
+      },
+      "domain": {
+        "path": "app/src/main/java/app/notedrop/android/domain/",
+        "models": ["Note", "Vault", "Template"],
+        "repositories": ["NoteRepository", "VaultRepository", "TemplateRepository"]
+      },
+      "data": {
+        "path": "app/src/main/java/app/notedrop/android/data/",
+        "database": "Room",
+        "components": ["repositories", "providers", "voice", "local"]
+      }
+    }
+  },
+  "modules": {
+    "database": {
+      "path": "app/src/main/java/app/notedrop/android/data/local/",
+      "components": {
+        "database": "NoteDropDatabase.kt",
+        "daos": ["NoteDao.kt", "VaultDao.kt", "TemplateDao.kt"],
+        "entities": ["NoteEntity.kt", "VaultEntity.kt", "TemplateEntity.kt"]
+      },
+      "purpose": "Local data persistence with Room"
+    },
+    "repositories": {
+      "path": "app/src/main/java/app/notedrop/android/data/repository/",
+      "implementations": [
+        "NoteRepositoryImpl.kt",
+        "VaultRepositoryImpl.kt",
+        "TemplateRepositoryImpl.kt"
+      ],
+      "purpose": "Data layer abstractions, domain-to-data mapping"
+    },
+    "providers": {
+      "path": "app/src/main/java/app/notedrop/android/data/provider/",
+      "components": ["NoteProvider.kt", "ObsidianProvider.kt"],
+      "purpose": "External sync (Obsidian vaults, front-matter, daily notes)"
+    },
+    "voice": {
+      "path": "app/src/main/java/app/notedrop/android/data/voice/",
+      "components": ["VoiceRecorder.kt", "VoicePlayer.kt"],
+      "purpose": "Voice recording and playback"
+    },
+    "di": {
+      "path": "app/src/main/java/app/notedrop/android/di/",
+      "modules": ["DatabaseModule.kt", "RepositoryModule.kt"],
+      "purpose": "Dependency injection with Hilt"
+    },
+    "navigation": {
+      "path": "app/src/main/java/app/notedrop/android/navigation/NoteDropNavigation.kt",
+      "routes": ["home", "quick_capture", "settings"],
+      "purpose": "Compose navigation with bottom bar"
+    },
+    "theme": {
+      "path": "app/src/main/java/app/notedrop/android/ui/theme/",
+      "components": ["Theme.kt", "Color.kt", "Type.kt"],
+      "purpose": "Material 3 theming"
+    }
+  },
+  "features": {
+    "quickCapture": {
+      "path": "app/src/main/java/app/notedrop/android/ui/capture/",
+      "screen": "QuickCaptureScreen.kt",
+      "viewModel": "QuickCaptureViewModel.kt",
+      "capabilities": ["templates", "tags", "voice recording", "save & sync"]
+    },
+    "home": {
+      "path": "app/src/main/java/app/notedrop/android/ui/home/",
+      "screen": "HomeScreen.kt",
+      "viewModel": "HomeViewModel.kt",
+      "capabilities": ["notes list", "search", "filters", "delete"]
+    },
+    "settings": {
+      "path": "app/src/main/java/app/notedrop/android/ui/settings/",
+      "screen": "SettingsScreen.kt",
+      "viewModel": "SettingsViewModel.kt",
+      "capabilities": ["vault management", "provider config", "about"]
+    }
+  },
+  "dependencies": {
+    "core": {
+      "compose": "Jetpack Compose BOM",
+      "material3": "Material 3",
+      "hilt": "Dependency Injection",
+      "room": "Local Database",
+      "coroutines": "Async Processing",
+      "navigation": "Navigation Compose"
+    },
+    "storage": {
+      "room": "SQLite database",
+      "datastore": "Key-value preferences"
+    },
+    "ui": {
+      "compose": "UI framework",
+      "glance": "Widget framework (ready)"
+    },
+    "testing": {
+      "junit": "Test framework",
+      "mockk": "Mocking library",
+      "truth": "Assertions",
+      "turbine": "Flow testing",
+      "robolectric": "Unit testing",
+      "espresso": "UI testing"
+    }
+  },
+  "testing": {
+    "unitTests": {
+      "path": "app/src/test/java/app/notedrop/android/",
+      "categories": {
+        "domainModels": {
+          "count": 39,
+          "files": ["NoteTest.kt", "VaultTest.kt", "TemplateTest.kt"]
+        },
+        "repositories": {
+          "count": 16,
+          "files": ["NoteRepositoryImplTest.kt"]
+        },
+        "viewModels": {
+          "count": 14,
+          "files": ["HomeViewModelTest.kt"]
+        }
+      },
+      "utilities": ["TestDispatchers.kt", "TestFixtures.kt", "FakeRepositories.kt"],
+      "total": 69
+    },
+    "instrumentedTests": {
+      "path": "app/src/androidTest/java/app/notedrop/android/",
+      "total": 1
+    },
+    "coverage": {
+      "current": "35%",
+      "target": "95%"
+    }
+  },
+  "configuration": {
+    "build": {
+      "root": "build.gradle.kts",
+      "app": "app/build.gradle.kts",
+      "namespace": "app.notedrop.android",
+      "minSdk": 31,
+      "targetSdk": 35,
+      "compileSdk": 35,
+      "versionCode": 1,
+      "versionName": "1.0.0"
+    },
+    "manifest": {
+      "path": "app/src/main/AndroidManifest.xml",
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE (≤API 32)",
+        "WRITE_EXTERNAL_STORAGE (≤API 32)"
+      ],
+      "components": ["MainActivity", "NoteDropApplication"]
+    },
+    "gradle": {
+      "properties": "gradle.properties",
+      "settings": "settings.gradle.kts",
+      "wrapper": "gradle/wrapper/gradle-wrapper.properties"
+    }
+  },
+  "documentation": {
+    "user": [
+      {
+        "file": "README.md",
+        "purpose": "Main project overview, features, setup, user guide"
+      },
+      {
+        "file": "ROADMAP.md",
+        "purpose": "Development roadmap, priorities, timeline"
+      }
+    ],
+    "developer": [
+      {
+        "file": "PROJECT_STRUCTURE.md",
+        "purpose": "Architecture details, layer breakdown"
+      },
+      {
+        "file": "IMPLEMENTATION_SUMMARY.md",
+        "purpose": "Implementation details, decisions"
+      },
+      {
+        "file": "TESTING_GUIDE.md",
+        "purpose": "Testing strategy, test organization"
+      },
+      {
+        "file": "TEST_IMPLEMENTATION_SUMMARY.md",
+        "purpose": "Test coverage report"
+      }
+    ]
+  },
+  "features_status": {
+    "implemented": [
+      "Material You dynamic theming",
+      "Quick capture (< 2 seconds)",
+      "Voice recording with pause/resume",
+      "Obsidian integration (Markdown + front-matter)",
+      "Template system (3 built-in templates)",
+      "Tag support",
+      "Search and filtering",
+      "Multiple vault support",
+      "Settings and vault management"
+    ],
+    "inProgress": [
+      "Runtime permission requests",
+      "Note editing screen",
+      "Complete test coverage (target: 95%)"
+    ],
+    "planned": [
+      "Voice transcription (Whisper or Speech API)",
+      "Home screen widget (Glance)",
+      "Export/Import (GDPR compliance)",
+      "Advanced search (FTS)",
+      "Rich text editor",
+      "Image attachments"
+    ]
+  },
+  "roadmap": {
+    "immediate": {
+      "title": "This Week",
+      "tasks": [
+        "Runtime permissions (2-3h)",
+        "Complete remaining tests (6-8h)",
+        "Improve error handling UI (3-4h)",
+        "Add note editing screen (4-5h)"
+      ]
+    },
+    "nextSprint": {
+      "title": "This Month",
+      "tasks": [
+        "Home screen widget (Glance)",
+        "Voice transcription",
+        "UI polish and animations",
+        "Export/Import functionality"
+      ]
+    },
+    "productionReady": {
+      "title": "2-3 weeks",
+      "requirements": [
+        "All core features complete",
+        "95%+ test coverage",
+        "Play Store assets ready",
+        "Beta testing completed"
+      ]
+    }
+  },
+  "privacy": {
+    "design": "Privacy-First",
+    "principles": [
+      "Local-first (Room SQLite)",
+      "No analytics or telemetry",
+      "No cloud dependency",
+      "Open source",
+      "GDPR compliant"
+    ],
+    "dataStorage": {
+      "notes": "Local Room database",
+      "voice": "App private storage",
+      "obsidianSync": "Direct file writes (user-controlled vault)"
+    }
+  },
+  "statistics": {
+    "language": "Kotlin (100%)",
+    "linesOfCode": "~5,000+",
+    "sourceFiles": "50+",
+    "testFiles": "13+",
+    "documentationFiles": 5
+  },
+  "quickStart": {
+    "setup": [
+      "git clone https://github.com/yourusername/notedrop.git",
+      "cd notedrop",
+      "Open in Android Studio Hedgehog or later",
+      "Sync Gradle (automatic)"
+    ],
+    "build": [
+      "./gradlew assembleDebug",
+      "./gradlew assembleRelease"
+    ],
+    "test": [
+      "./gradlew test",
+      "./gradlew connectedAndroidTest",
+      "./gradlew testDebugUnitTestCoverage"
+    ],
+    "run": [
+      "./gradlew installDebug",
+      "Or use Android Studio Run ▶️"
+    ]
+  },
+  "indexMetadata": {
+    "version": "1.0",
+    "generatedBy": "sc:index-repo",
+    "tokenReduction": "94%",
+    "sizeMD": "~3.5 KB",
+    "sizeJSON": "~10 KB",
+    "purpose": "LLM context efficiency and developer quick reference"
+  }
+}

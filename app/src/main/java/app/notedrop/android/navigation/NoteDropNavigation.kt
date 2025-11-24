@@ -1,6 +1,8 @@
 package app.notedrop.android.navigation
 
+import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -9,6 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import app.notedrop.android.ui.capture.QuickCaptureScreen
 import app.notedrop.android.ui.home.HomeScreen
 import app.notedrop.android.ui.settings.SettingsScreen
+import app.notedrop.android.ui.widget.CaptureType
 
 /**
  * Navigation routes for the app.
@@ -21,13 +24,27 @@ sealed class Screen(val route: String) {
 
 /**
  * Main navigation host for NoteDrop.
+ *
+ * @param startWithCaptureType Optional capture type from widget launch
  */
 @Composable
 fun NoteDropNavigation(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Screen.Home.route
+    startDestination: String = Screen.Home.route,
+    startWithCaptureType: CaptureType? = null
 ) {
+    // Navigate to quick capture if launched from widget
+    LaunchedEffect(startWithCaptureType) {
+        Log.d("NoteDropNavigation", "LaunchedEffect triggered with captureType: $startWithCaptureType")
+        if (startWithCaptureType != null) {
+            Log.d("NoteDropNavigation", "Navigating to QuickCapture with type: $startWithCaptureType")
+            navController.navigate(Screen.QuickCapture.route) {
+                // Clear back stack to prevent multiple home screens
+                popUpTo(Screen.Home.route) { inclusive = false }
+            }
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -51,7 +68,8 @@ fun NoteDropNavigation(
                 },
                 onNoteSaved = {
                     navController.popBackStack()
-                }
+                },
+                initialCaptureType = startWithCaptureType
             )
         }
 
