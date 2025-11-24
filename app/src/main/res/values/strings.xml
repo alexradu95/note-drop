@@ -4,6 +4,12 @@
     <!-- Widget strings -->
     <string name="widget_quick_capture_label">Quick Capture</string>
     <string name="widget_quick_capture_description">Quickly capture notes, voice recordings, or photos</string>
+    <string name="widget_text_capture_label">Quick Note</string>
+    <string name="widget_text_capture_description">Tap to capture a quick text note</string>
+    <string name="widget_voice_capture_label">Voice Note</string>
+    <string name="widget_voice_capture_description">Tap to record a voice note</string>
+    <string name="widget_camera_capture_label">Instant Camera</string>
+    <string name="widget_camera_capture_description">Tap to take an instant photo</string>
     <string name="widget_loading">Loading…</string>
     <string name="widget_action_text">Quick Note</string>
     <string name="widget_action_voice">Voice Note</string>

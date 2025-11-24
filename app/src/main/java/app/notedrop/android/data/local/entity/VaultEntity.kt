@@ -76,7 +76,9 @@ private fun providerConfigToJson(config: ProviderConfig): String {
         is ProviderConfig.CustomConfig -> {
             "{}" // TODO: Implement proper serialization
         }
-    }
+
+        else -> {}
+    } as String
 }
 
 /**

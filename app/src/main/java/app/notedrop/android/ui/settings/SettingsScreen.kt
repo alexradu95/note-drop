@@ -1,5 +1,9 @@
 package app.notedrop.android.ui.settings
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,8 +13,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.navigation.compose.hiltViewModel
+import app.notedrop.android.domain.model.ProviderConfig
 import app.notedrop.android.domain.model.ProviderType
 import app.notedrop.android.domain.model.Vault
 
@@ -44,7 +51,7 @@ fun SettingsScreen(
             ExtendedFloatingActionButton(
                 onClick = { showCreateVaultDialog = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("New Vault") }
+                text = { Text("Connect Vault") }
             )
         }
     ) { padding ->
@@ -74,7 +81,14 @@ fun SettingsScreen(
                         vault = vault,
                         isDefault = vault.id == defaultVault?.id,
                         onSetDefault = { viewModel.setDefaultVault(vault.id) },
-                        onDelete = { viewModel.deleteVault(vault.id) }
+                        onDelete = { viewModel.deleteVault(vault.id) },
+                        onViewConfig = {
+                            // Load config for this vault
+                            val vaultConfig = vault.providerConfig as? ProviderConfig.ObsidianConfig
+                            vaultConfig?.let {
+                                viewModel.loadVaultConfig(Uri.parse(it.vaultPath))
+                            }
+                        }
                     )
                 }
             }
@@ -105,9 +119,35 @@ fun SettingsScreen(
                 viewModel.createVault(name, description, providerType, vaultPath, setAsDefault)
                 if (uiState.vaultCreated) {
                     showCreateVaultDialog = false
+                    // Load vault config after creation
+                    viewModel.loadVaultConfig(Uri.parse(vaultPath))
                 }
             }
         )
+    }
+
+    // Vault configuration dialog
+    val vaultConfig = uiState.vaultConfig
+    if (uiState.showConfigScreen && vaultConfig != null) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { viewModel.dismissConfigScreen() },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false
+            )
+        ) {
+            VaultConfigurationScreen(
+                vaultConfig = vaultConfig,
+                onNavigateBack = {
+                    viewModel.dismissConfigScreen()
+                },
+                onSaveConfig = { config ->
+                    // TODO: Save updated config
+                    viewModel.dismissConfigScreen()
+                }
+            )
+        }
     }
 
     // Error snackbar
@@ -125,12 +165,15 @@ private fun VaultCard(
     vault: Vault,
     isDefault: Boolean,
     onSetDefault: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onViewConfig: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onViewConfig)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -190,13 +233,30 @@ private fun VaultCard(
                 )
             }
 
-            // Action button
-            if (!isDefault) {
-                Button(
-                    onClick = onSetDefault,
-                    modifier = Modifier.fillMaxWidth()
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (!isDefault) {
+                    Button(
+                        onClick = onSetDefault,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Set as Default")
+                    }
+                }
+                OutlinedButton(
+                    onClick = onViewConfig,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text("Set as Default")
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Configure")
                 }
             }
         }
@@ -246,12 +306,12 @@ private fun EmptyVaultState() {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "No vaults configured",
+                text = "No Obsidian vault connected",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "Create a vault to start capturing notes",
+                text = "Connect your Obsidian vault to start capturing notes",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -264,72 +324,131 @@ private fun CreateVaultDialog(
     onDismiss: () -> Unit,
     onCreate: (String, String?, ProviderType, String, Boolean) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    val context = LocalContext.current
     var vaultPath by remember { mutableStateOf("") }
-    var setAsDefault by remember { mutableStateOf(true) }
-    var selectedProvider by remember { mutableStateOf(ProviderType.OBSIDIAN) }
+    var vaultUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Folder picker launcher
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            // Take persistable permission
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+
+            vaultUri = it
+
+            // Get the folder name from DocumentFile
+            val documentFile = DocumentFile.fromTreeUri(context, it)
+            val folderName = documentFile?.name ?: "Obsidian Vault"
+
+            // Store the URI as the path (we'll use URI for file operations)
+            vaultPath = it.toString()
+        }
+    }
+
+    // Auto-generate vault name from URI
+    val vaultName = remember(vaultUri) {
+        vaultUri?.let { uri ->
+            val documentFile = DocumentFile.fromTreeUri(context, uri)
+            documentFile?.name ?: "Obsidian Vault"
+        } ?: ""
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create New Vault") },
+        title = { Text("Connect Obsidian Vault") },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Vault Name") },
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description (optional)") },
-                    singleLine = true
-                )
-
+                // Info text
                 Text(
-                    text = "Provider",
-                    style = MaterialTheme.typography.labelMedium
+                    text = "Select your Obsidian vault folder to start capturing notes.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                ProviderType.values().forEach { provider ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
+                // Browse button
+                OutlinedButton(
+                    onClick = { folderPickerLauncher.launch(null) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Browse for Vault Folder")
+                }
+
+                // Show selected folder
+                if (vaultName.isNotBlank()) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
                     ) {
-                        RadioButton(
-                            selected = selectedProvider == provider,
-                            onClick = { selectedProvider = provider }
-                        )
-                        Text(
-                            text = provider.name,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Selected Vault",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = vaultName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                     }
                 }
 
-                OutlinedTextField(
-                    value = vaultPath,
-                    onValueChange = { vaultPath = it },
-                    label = { Text("Vault Path") },
-                    singleLine = true,
-                    placeholder = { Text("/storage/emulated/0/Documents/MyVault") }
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+                // Helper text
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
                 ) {
-                    Checkbox(
-                        checked = setAsDefault,
-                        onCheckedChange = { setAsDefault = it }
-                    )
-                    Text(
-                        text = "Set as default vault",
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = "Select the root folder of your Obsidian vault. Notes will be saved as markdown files in this location.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
                 }
             }
         },
@@ -337,16 +456,22 @@ private fun CreateVaultDialog(
             Button(
                 onClick = {
                     onCreate(
-                        name,
-                        description.takeIf { it.isNotBlank() },
-                        selectedProvider,
+                        vaultName.ifBlank { "Obsidian Vault" },
+                        null, // No description
+                        ProviderType.OBSIDIAN,
                         vaultPath,
-                        setAsDefault
+                        true // Always set as default
                     )
                 },
-                enabled = name.isNotBlank() && vaultPath.isNotBlank()
+                enabled = vaultPath.isNotBlank()
             ) {
-                Text("Create")
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Connect Vault")
             }
         },
         dismissButton = {

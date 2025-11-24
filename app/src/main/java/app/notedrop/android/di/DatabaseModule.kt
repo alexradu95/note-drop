@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import app.notedrop.android.data.local.NoteDropDatabase
 import app.notedrop.android.data.local.dao.NoteDao
+import app.notedrop.android.data.local.dao.SyncStateDao
 import app.notedrop.android.data.local.dao.TemplateDao
 import app.notedrop.android.data.local.dao.VaultDao
 import dagger.Module
@@ -33,6 +34,7 @@ object DatabaseModule {
             NoteDropDatabase::class.java,
             NoteDropDatabase.DATABASE_NAME
         )
+            .addMigrations(NoteDropDatabase.MIGRATION_1_2)
             .fallbackToDestructiveMigration() // For development - remove in production
             .build()
     }
@@ -62,5 +64,14 @@ object DatabaseModule {
     @Singleton
     fun provideTemplateDao(database: NoteDropDatabase): TemplateDao {
         return database.templateDao()
+    }
+
+    /**
+     * Provides SyncStateDao from the database.
+     */
+    @Provides
+    @Singleton
+    fun provideSyncStateDao(database: NoteDropDatabase): SyncStateDao {
+        return database.syncStateDao()
     }
 }

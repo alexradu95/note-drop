@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_camera_capture_description"
+    android:initialLayout="@layout/widget_quick_capture_loading"
+    android:minWidth="80dp"
+    android:minHeight="80dp"
+    android:previewLayout="@layout/widget_quick_capture_loading"
+    android:resizeMode="none"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

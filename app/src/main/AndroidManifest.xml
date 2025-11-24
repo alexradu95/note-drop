@@ -12,6 +12,17 @@
         android:maxSdkVersion="32"
         tools:ignore="ScopedStorage" />
 
+    <!-- Camera permission for instant capture -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Foreground service permissions -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
+    <!-- Post notifications permission (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".NoteDropApplication"
         android:allowBackup="true"
@@ -47,6 +58,66 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quick_capture_widget_info" />
         </receiver>
+
+        <!-- Text Capture Widget (1x1) -->
+        <receiver
+            android:name=".ui.widget.TextCaptureWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_text_capture_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/text_capture_widget_info" />
+        </receiver>
+
+        <!-- Voice Capture Widget (1x1) -->
+        <receiver
+            android:name=".ui.widget.VoiceCaptureWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_voice_capture_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/voice_capture_widget_info" />
+        </receiver>
+
+        <!-- Camera Capture Widget (1x1) -->
+        <receiver
+            android:name=".ui.widget.CameraCaptureWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_camera_capture_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/camera_capture_widget_info" />
+        </receiver>
+
+        <!-- Text Input Activity (Dialog style) -->
+        <activity
+            android:name=".ui.widget.action.TextInputActivity"
+            android:exported="false"
+            android:theme="@style/Theme.NoteDrop.Dialog"
+            android:excludeFromRecents="true" />
+
+        <!-- Transparent Camera Activity -->
+        <activity
+            android:name=".ui.widget.camera.TransparentCameraActivity"
+            android:exported="false"
+            android:theme="@style/Theme.NoteDrop.Transparent"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true" />
+
+        <!-- Voice Recording Service -->
+        <service
+            android:name=".ui.widget.service.VoiceRecordingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
     </application>
 

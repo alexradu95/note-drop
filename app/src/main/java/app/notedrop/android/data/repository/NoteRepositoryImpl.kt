@@ -33,6 +33,10 @@ class NoteRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getNotesForVault(vaultId: String): List<Note> {
+        return noteDao.getNotesByVaultList(vaultId).map { it.toDomain() }
+    }
+
     override suspend fun getNoteById(id: String): Note? {
         return noteDao.getNoteById(id)?.toDomain()
     }

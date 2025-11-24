@@ -57,6 +57,47 @@ class ObsidianProvider @Inject constructor(
         }
     }
 
+    override suspend fun listNotes(vault: Vault): Result<List<app.notedrop.android.domain.model.NoteMetadata>> {
+        return try {
+            val config = vault.providerConfig as? ProviderConfig.ObsidianConfig
+                ?: return Result.failure(IllegalArgumentException("Invalid Obsidian config"))
+
+            val vaultDir = File(config.vaultPath)
+            if (!vaultDir.exists() || !vaultDir.isDirectory) {
+                return Result.success(emptyList())
+            }
+
+            val notes = mutableListOf<app.notedrop.android.domain.model.NoteMetadata>()
+
+            // Recursively find all markdown files
+            vaultDir.walkTopDown()
+                .filter { it.isFile && it.extension == "md" }
+                .forEach { file ->
+                    val relativePath = file.relativeTo(vaultDir).path
+                    val title = file.nameWithoutExtension
+                    notes.add(
+                        app.notedrop.android.domain.model.NoteMetadata(
+                            id = app.notedrop.android.domain.model.NoteMetadata.generateIdFromPath(relativePath),
+                            title = title,
+                            path = relativePath,
+                            modifiedAt = java.time.Instant.ofEpochMilli(file.lastModified()),
+                            size = file.length(),
+                            tags = emptyList() // TODO: Parse tags from file content
+                        )
+                    )
+                }
+
+            Result.success(notes)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getMetadata(noteId: String, vault: Vault): Result<app.notedrop.android.domain.model.FileMetadata> {
+        // TODO: Implement metadata retrieval
+        return Result.failure(NotImplementedError("Metadata retrieval not yet implemented"))
+    }
+
     override suspend fun isAvailable(vault: Vault): Boolean {
         val config = vault.providerConfig as? ProviderConfig.ObsidianConfig ?: return false
         val vaultDir = File(config.vaultPath)

@@ -25,7 +25,7 @@ class WidgetUpdateWorker(
     override suspend fun doWork(): Result {
         return try {
             // Update all widget instances
-            QuickCaptureWidget().updateAll(context)
+            InteractiveQuickCaptureWidget().updateAll(context)
 
             Result.success()
         } catch (e: Exception) {

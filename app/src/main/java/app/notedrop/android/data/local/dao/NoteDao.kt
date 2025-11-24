@@ -27,6 +27,13 @@ interface NoteDao {
     fun getNotesByVault(vaultId: String): Flow<List<NoteEntity>>
 
     /**
+     * Get notes by vault ID as a list (not Flow).
+     * Used for sync operations.
+     */
+    @Query("SELECT * FROM notes WHERE vaultId = :vaultId ORDER BY createdAt DESC")
+    suspend fun getNotesByVaultList(vaultId: String): List<NoteEntity>
+
+    /**
      * Get a single note by ID.
      */
     @Query("SELECT * FROM notes WHERE id = :id")

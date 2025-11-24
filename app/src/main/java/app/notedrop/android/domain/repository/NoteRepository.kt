@@ -19,6 +19,12 @@ interface NoteRepository {
     fun getNotesByVault(vaultId: String): Flow<List<Note>>
 
     /**
+     * Get notes by vault ID as a list (not Flow).
+     * Used for sync operations.
+     */
+    suspend fun getNotesForVault(vaultId: String): List<Note>
+
+    /**
      * Get a single note by ID.
      */
     suspend fun getNoteById(id: String): Note?

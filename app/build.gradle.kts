@@ -46,6 +46,13 @@ android {
         compose = true
     }
 
+    packaging {
+        // Enable 16 KB page size alignment for native libraries
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -112,6 +119,7 @@ dependencies {
 
     // Hilt
     implementation(libs.hilt.android)
+    implementation(libs.androidx.compose.ui.unit)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
@@ -136,6 +144,15 @@ dependencies {
 
     // WorkManager (for widget updates)
     implementation(libs.androidx.work.runtime.ktx)
+
+    // CameraX (for instant camera capture)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+
+    // DocumentFile (for folder picker)
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     // Testing - Unit Tests
     testImplementation(libs.junit)

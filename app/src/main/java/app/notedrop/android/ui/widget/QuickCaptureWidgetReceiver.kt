@@ -16,5 +16,5 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
  */
 class QuickCaptureWidgetReceiver : GlanceAppWidgetReceiver() {
 
-    override val glanceAppWidget: GlanceAppWidget = ImprovedQuickCaptureWidget()
+    override val glanceAppWidget: GlanceAppWidget = InteractiveQuickCaptureWidget()
 }

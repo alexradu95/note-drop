@@ -1,7 +1,10 @@
 package app.notedrop.android.ui.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.notedrop.android.data.parser.ObsidianConfigParser
+import app.notedrop.android.domain.model.ObsidianVaultConfig
 import app.notedrop.android.domain.model.ProviderConfig
 import app.notedrop.android.domain.model.ProviderType
 import app.notedrop.android.domain.model.Vault
@@ -22,7 +25,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val vaultRepository: VaultRepository,
-    private val noteRepository: NoteRepository
+    private val noteRepository: NoteRepository,
+    private val obsidianConfigParser: ObsidianConfigParser
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -61,6 +65,9 @@ class SettingsViewModel @Inject constructor(
                     useFrontMatter = true
                 )
                 ProviderType.NOTION -> ProviderConfig.NotionConfig(
+                    workspaceId = vaultPath
+                )
+                ProviderType.CAPACITIES -> ProviderConfig.CapacitiesConfig(
                     workspaceId = vaultPath
                 )
                 ProviderType.CUSTOM -> ProviderConfig.CustomConfig(
@@ -129,6 +136,30 @@ class SettingsViewModel @Inject constructor(
     fun resetState() {
         _uiState.value = SettingsUiState()
     }
+
+    /**
+     * Load Obsidian vault configuration from the vault URI
+     */
+    fun loadVaultConfig(vaultUri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingConfig = true)
+
+            val config = obsidianConfigParser.parseVaultConfig(vaultUri)
+
+            _uiState.value = _uiState.value.copy(
+                isLoadingConfig = false,
+                vaultConfig = config,
+                showConfigScreen = config != null
+            )
+        }
+    }
+
+    fun dismissConfigScreen() {
+        _uiState.value = _uiState.value.copy(
+            showConfigScreen = false,
+            vaultConfig = null
+        )
+    }
 }
 
 /**
@@ -137,6 +168,9 @@ class SettingsViewModel @Inject constructor(
 data class SettingsUiState(
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
+    val isLoadingConfig: Boolean = false,
     val vaultCreated: Boolean = false,
+    val showConfigScreen: Boolean = false,
+    val vaultConfig: ObsidianVaultConfig? = null,
     val error: String? = null
 )

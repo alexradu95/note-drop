@@ -32,9 +32,10 @@ data class Vault(
  * Types of storage providers supported.
  */
 enum class ProviderType {
-    LOCAL,      // Local device storage
+    LOCAL,      // Local device storage (simple folder with txt/md files)
     OBSIDIAN,   // Obsidian vault
     NOTION,     // Notion workspace
+    CAPACITIES, // Capacities workspace
     CUSTOM      // Custom provider (future extensibility)
 }
 
@@ -43,36 +44,108 @@ enum class ProviderType {
  */
 sealed class ProviderConfig {
     /**
-     * Configuration for local storage provider.
+     * Configuration for local file-based storage provider.
+     * Simple folder structure with txt/md files - no cloud sync, just local organization.
      */
     data class LocalConfig(
-        val storagePath: String
+        val storagePath: String,
+        val fileExtension: String = "md",
+        val useSubfolders: Boolean = true,
+        val folderStructure: FolderStructure = FolderStructure.FLAT
     ) : ProviderConfig()
 
     /**
      * Configuration for Obsidian vault provider.
+     * Supports full Obsidian features: frontmatter, wiki-links, daily notes, templates.
      */
     data class ObsidianConfig(
+        // Storage paths
         val vaultPath: String,
         val dailyNotesPath: String? = null,
         val templatePath: String? = null,
+        val attachmentsPath: String? = "attachments",
+
+        // Markdown format settings
         val useFrontMatter: Boolean = true,
-        val frontMatterTemplate: String? = null
+        val frontMatterTemplate: String? = null,
+        val preserveObsidianLinks: Boolean = true,
+
+        // Sync settings
+        val syncMode: SyncMode = SyncMode.BIDIRECTIONAL,
+        val conflictStrategy: ConflictStrategy = ConflictStrategy.LAST_WRITE_WINS,
+        val watchForChanges: Boolean = true,
+        val autoSyncIntervalMinutes: Int = 30,
+
+        // Obsidian-specific features
+        val enableBacklinks: Boolean = false,
+        val enableTemplateVariables: Boolean = true
     ) : ProviderConfig()
 
     /**
-     * Configuration for Notion provider (future).
+     * Configuration for Notion provider.
+     * API-based sync with Notion workspace.
      */
     data class NotionConfig(
         val workspaceId: String,
         val databaseId: String? = null,
-        val apiKey: String? = null
+        val apiKey: String? = null,
+
+        // Sync settings
+        val syncMode: SyncMode = SyncMode.BIDIRECTIONAL,
+        val conflictStrategy: ConflictStrategy = ConflictStrategy.LAST_WRITE_WINS,
+        val autoSyncIntervalMinutes: Int = 30,
+
+        // Notion-specific settings
+        val defaultPageIcon: String? = "📝",
+        val mapTagsToMultiSelect: Boolean = true
+    ) : ProviderConfig()
+
+    /**
+     * Configuration for Capacities provider.
+     * Integration with Capacities workspace.
+     */
+    data class CapacitiesConfig(
+        val workspaceId: String,
+        val apiKey: String? = null,
+        val spaceId: String? = null,
+
+        // Sync settings
+        val syncMode: SyncMode = SyncMode.BIDIRECTIONAL,
+        val conflictStrategy: ConflictStrategy = ConflictStrategy.LAST_WRITE_WINS,
+        val autoSyncIntervalMinutes: Int = 30
     ) : ProviderConfig()
 
     /**
      * Configuration for custom providers (future extensibility).
      */
     data class CustomConfig(
-        val config: Map<String, String>
+        val config: Map<String, String>,
+        val syncMode: SyncMode = SyncMode.BIDIRECTIONAL,
+        val conflictStrategy: ConflictStrategy = ConflictStrategy.LAST_WRITE_WINS
     ) : ProviderConfig()
+}
+
+/**
+ * Folder structure for local file-based providers.
+ */
+enum class FolderStructure {
+    /**
+     * All files in one folder.
+     */
+    FLAT,
+
+    /**
+     * Organize by date (YYYY/MM/DD/).
+     */
+    BY_DATE,
+
+    /**
+     * Organize by first tag.
+     */
+    BY_TAG,
+
+    /**
+     * Organize by year and month (YYYY/MM/).
+     */
+    BY_YEAR_MONTH
 }
