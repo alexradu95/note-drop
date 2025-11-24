@@ -17,7 +17,12 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import app.notedrop.android.MainActivity
 import app.notedrop.android.R
+import app.notedrop.android.domain.model.Note
+import app.notedrop.android.domain.repository.NoteRepository
+import app.notedrop.android.domain.repository.VaultRepository
+import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,7 +31,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.*
+import javax.inject.Inject
 
 /**
  * Foreground service for voice recording from widget
@@ -37,7 +44,17 @@ import java.util.*
  * - Shows recording duration
  * - Saves audio file when stopped
  */
+@AndroidEntryPoint
 class VoiceRecordingService : Service() {
+
+    @Inject
+    lateinit var noteRepository: NoteRepository
+
+    @Inject
+    lateinit var vaultRepository: VaultRepository
+
+    @Inject
+    lateinit var providerFactory: ProviderFactory
 
     companion object {
         private const val TAG = "VoiceRecordingService"
@@ -141,8 +158,14 @@ class VoiceRecordingService : Service() {
 
             durationJob?.cancel()
 
-            // TODO: Save the recording file to note repository
+            // Save the recording file to note repository
             Log.d(TAG, "Recording stopped: ${recordingFile?.absolutePath}")
+
+            recordingFile?.let { file ->
+                serviceScope.launch {
+                    saveVoiceNote(file)
+                }
+            }
 
             // Update widget to idle state
             serviceScope.launch {
@@ -210,6 +233,92 @@ class VoiceRecordingService : Service() {
 
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.createNotificationChannel(channel)
+    }
+
+    /**
+     * Save voice recording to vault and create note
+     */
+    private suspend fun saveVoiceNote(tempFile: File) {
+        try {
+            // Get default vault
+            val vault = vaultRepository.getDefaultVault()
+            if (vault == null) {
+                Log.w(TAG, "No default vault configured, voice note not saved")
+                tempFile.delete()
+                return
+            }
+
+            // Copy audio file to vault's audio/attachments folder
+            val audioFileName = tempFile.name
+            val audioRelativePath = "audio/$audioFileName"
+
+            // Get vault root and create audio folder
+            val vaultUri = android.net.Uri.parse((vault.providerConfig as? app.notedrop.android.domain.model.ProviderConfig.ObsidianConfig)?.vaultPath)
+            val vaultRoot = androidx.documentfile.provider.DocumentFile.fromTreeUri(this, vaultUri)
+
+            if (vaultRoot != null && vaultRoot.exists()) {
+                // Find or create audio folder
+                val audioFolder = vaultRoot.findFile("audio") ?: vaultRoot.createDirectory("audio")
+
+                if (audioFolder != null) {
+                    // Create audio file in vault
+                    val audioFile = audioFolder.createFile("audio/m4a", audioFileName)
+
+                    if (audioFile != null) {
+                        // Copy temp file to vault
+                        contentResolver.openOutputStream(audioFile.uri)?.use { outputStream ->
+                            tempFile.inputStream().use { inputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+
+                        Log.d(TAG, "Audio file saved to vault: $audioRelativePath")
+
+                        // Create note with voice recording reference
+                        val note = Note(
+                            content = "Voice recording captured",
+                            title = "Voice Note",
+                            vaultId = vault.id,
+                            tags = listOf("voice-note"),
+                            createdAt = Instant.now(),
+                            updatedAt = Instant.now(),
+                            voiceRecordingPath = audioRelativePath,
+                            transcriptionStatus = app.notedrop.android.domain.model.TranscriptionStatus.PENDING
+                        )
+
+                        val result = noteRepository.createNote(note)
+
+                        result.onSuccess { savedNote ->
+                            Log.d(TAG, "Voice note saved to database: ${savedNote.id}")
+
+                            // Sync to provider
+                            val noteProvider = providerFactory.getProvider(vault.providerType)
+                            if (noteProvider.isAvailable(vault)) {
+                                val providerResult = noteProvider.saveNote(savedNote, vault)
+                                providerResult.onSuccess { filePath ->
+                                    Log.d(TAG, "Voice note synced to provider: $filePath")
+                                    noteRepository.updateNote(savedNote.copy(
+                                        filePath = filePath,
+                                        isSynced = true
+                                    ))
+                                }.onFailure { providerError ->
+                                    Log.e(TAG, "Failed to sync voice note to provider", providerError)
+                                }
+                            }
+                        }.onFailure { error ->
+                            Log.e(TAG, "Failed to save voice note to database", error)
+                        }
+                    }
+                }
+            }
+
+            // Clean up temp file
+            tempFile.delete()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save voice note", e)
+            tempFile.delete()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

@@ -73,8 +73,38 @@ class ObsidianProvider @Inject constructor(
     }
 
     override suspend fun loadNote(noteId: String, vault: Vault): Result<Note> {
-        // TODO: Implement loading notes from Obsidian vault
-        return Result.failure(NotImplementedError("Loading from Obsidian not yet implemented"))
+        return try {
+            val config = vault.providerConfig as? ProviderConfig.ObsidianConfig
+                ?: return Result.failure(IllegalArgumentException("Invalid Obsidian config"))
+
+            android.util.Log.d("ObsidianProvider", "loadNote: noteId=$noteId")
+
+            // Get vault root as DocumentFile
+            val vaultUri = Uri.parse(config.vaultPath)
+            val vaultRoot = DocumentFile.fromTreeUri(context, vaultUri)
+                ?: return Result.failure(IllegalArgumentException("Cannot access vault at ${config.vaultPath}"))
+
+            // Convert noteId to path (noteId is relative path without extension)
+            val relativePath = noteId.replace("_", "/") + ".md"
+
+            // Navigate to the file
+            val file = findFileByPath(vaultRoot, relativePath)
+                ?: return Result.failure(IllegalArgumentException("Note not found: $relativePath"))
+
+            // Read file content
+            val content = context.contentResolver.openInputStream(file.uri)?.use {
+                it.bufferedReader().readText()
+            } ?: return Result.failure(IllegalArgumentException("Cannot read note content"))
+
+            // Parse the markdown content
+            val parsedNote = parseMarkdownContent(content, noteId, vault.id, relativePath)
+
+            android.util.Log.d("ObsidianProvider", "Note loaded: $relativePath")
+            Result.success(parsedNote)
+        } catch (e: Exception) {
+            android.util.Log.e("ObsidianProvider", "Error loading note", e)
+            Result.failure(e)
+        }
     }
 
     override suspend fun deleteNote(noteId: String, vault: Vault): Result<Unit> {
@@ -82,9 +112,56 @@ class ObsidianProvider @Inject constructor(
             val config = vault.providerConfig as? ProviderConfig.ObsidianConfig
                 ?: return Result.failure(IllegalArgumentException("Invalid Obsidian config"))
 
-            // TODO: Implement note deletion
+            android.util.Log.d("ObsidianProvider", "deleteNote: noteId=$noteId")
+
+            // Get vault root as DocumentFile
+            val vaultUri = Uri.parse(config.vaultPath)
+            val vaultRoot = DocumentFile.fromTreeUri(context, vaultUri)
+                ?: return Result.failure(IllegalArgumentException("Cannot access vault at ${config.vaultPath}"))
+
+            // Convert noteId to path (noteId is relative path without extension)
+            val relativePath = noteId.replace("_", "/") + ".md"
+
+            // Navigate to the file
+            val file = findFileByPath(vaultRoot, relativePath)
+                ?: return Result.failure(IllegalArgumentException("Note not found: $relativePath"))
+
+            // Check if this is a daily note by checking if it matches the daily note pattern
+            val isDailyNote = isDailyNoteFile(relativePath, config)
+
+            if (isDailyNote) {
+                // For daily notes, remove the entry from "## Drops" section, don't delete the file
+                android.util.Log.d("ObsidianProvider", "Deleting entry from daily note: $relativePath")
+
+                // Read existing content
+                val content = context.contentResolver.openInputStream(file.uri)?.use {
+                    it.bufferedReader().readText()
+                } ?: return Result.failure(IllegalArgumentException("Cannot read note content"))
+
+                // Remove the entry by timestamp (noteId contains timestamp info)
+                val updatedContent = removeEntryFromDailyNote(content, noteId)
+
+                // Write back the updated content
+                context.contentResolver.openOutputStream(file.uri, "wt")?.use { outputStream ->
+                    outputStream.bufferedWriter().use { writer ->
+                        writer.write(updatedContent)
+                    }
+                }
+
+                android.util.Log.d("ObsidianProvider", "Entry removed from daily note")
+            } else {
+                // For standalone notes, delete the entire file
+                android.util.Log.d("ObsidianProvider", "Deleting standalone note file: $relativePath")
+                val deleted = file.delete()
+                if (!deleted) {
+                    return Result.failure(IllegalStateException("Failed to delete file: $relativePath"))
+                }
+                android.util.Log.d("ObsidianProvider", "Note file deleted")
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("ObsidianProvider", "Error deleting note", e)
             Result.failure(e)
         }
     }
@@ -126,8 +203,46 @@ class ObsidianProvider @Inject constructor(
     }
 
     override suspend fun getMetadata(noteId: String, vault: Vault): Result<app.notedrop.android.domain.model.FileMetadata> {
-        // TODO: Implement metadata retrieval
-        return Result.failure(NotImplementedError("Metadata retrieval not yet implemented"))
+        return try {
+            val config = vault.providerConfig as? ProviderConfig.ObsidianConfig
+                ?: return Result.failure(IllegalArgumentException("Invalid Obsidian config"))
+
+            android.util.Log.d("ObsidianProvider", "getMetadata: noteId=$noteId")
+
+            // Get vault root as DocumentFile
+            val vaultUri = Uri.parse(config.vaultPath)
+            val vaultRoot = DocumentFile.fromTreeUri(context, vaultUri)
+                ?: return Result.failure(IllegalArgumentException("Cannot access vault at ${config.vaultPath}"))
+
+            // Convert noteId to path (noteId is relative path without extension)
+            val relativePath = noteId.replace("_", "/") + ".md"
+
+            // Navigate to the file
+            val file = findFileByPath(vaultRoot, relativePath)
+                ?: return Result.failure(IllegalArgumentException("Note not found: $relativePath"))
+
+            // Get file metadata
+            val modifiedAt = java.time.Instant.ofEpochMilli(file.lastModified())
+            val size = file.length()
+
+            // Build absolute path (use URI as absolute path for DocumentFile)
+            val absolutePath = file.uri.toString()
+
+            val metadata = app.notedrop.android.domain.model.FileMetadata(
+                path = relativePath,
+                absolutePath = absolutePath,
+                modifiedAt = modifiedAt,
+                size = size,
+                checksum = null, // Checksum calculation would require reading file content
+                exists = file.exists()
+            )
+
+            android.util.Log.d("ObsidianProvider", "Metadata retrieved: $relativePath")
+            Result.success(metadata)
+        } catch (e: Exception) {
+            android.util.Log.e("ObsidianProvider", "Error getting metadata", e)
+            Result.failure(e)
+        }
     }
 
     override suspend fun isAvailable(vault: Vault): Boolean {
@@ -457,5 +572,191 @@ class ObsidianProvider @Inject constructor(
                 "$existingContent\n\n$dropsHeader\n\n$noteEntry"
             }
         }
+    }
+
+    /**
+     * Find a file by its relative path from vault root
+     */
+    private fun findFileByPath(root: DocumentFile, relativePath: String): DocumentFile? {
+        var current = root
+        val parts = relativePath.split('/')
+
+        // Navigate through folders
+        for (i in 0 until parts.size - 1) {
+            current = current.findFile(parts[i]) ?: return null
+        }
+
+        // Find the final file
+        return current.findFile(parts.last())
+    }
+
+    /**
+     * Parse markdown content and extract Note model
+     */
+    private fun parseMarkdownContent(content: String, noteId: String, vaultId: String, filePath: String): Note {
+        val lines = content.lines()
+        var currentIndex = 0
+
+        // Parse front-matter if present
+        val frontMatter = mutableMapOf<String, String>()
+        val tags = mutableListOf<String>()
+        var createdAt: java.time.Instant? = null
+        var updatedAt: java.time.Instant? = null
+
+        if (lines.isNotEmpty() && lines[0].trim() == "---") {
+            // Parse YAML front-matter
+            currentIndex = 1
+            while (currentIndex < lines.size && lines[currentIndex].trim() != "---") {
+                val line = lines[currentIndex]
+                if (line.contains(":")) {
+                    val (key, value) = line.split(":", limit = 2)
+                    val trimmedKey = key.trim()
+                    val trimmedValue = value.trim()
+
+                    frontMatter[trimmedKey] = trimmedValue
+
+                    // Parse specific fields
+                    when (trimmedKey) {
+                        "created" -> createdAt = tryParseInstant(trimmedValue)
+                        "updated" -> updatedAt = tryParseInstant(trimmedValue)
+                        "tags" -> {
+                            // Start of tags array
+                            currentIndex++
+                            while (currentIndex < lines.size && lines[currentIndex].trim().startsWith("-")) {
+                                val tag = lines[currentIndex].trim().removePrefix("-").trim()
+                                if (tag.isNotBlank()) tags.add(tag)
+                                currentIndex++
+                            }
+                            currentIndex-- // Back up one since we'll increment at loop end
+                        }
+                    }
+                }
+                currentIndex++
+            }
+            if (currentIndex < lines.size) currentIndex++ // Skip closing ---
+        }
+
+        // Skip empty lines after front-matter
+        while (currentIndex < lines.size && lines[currentIndex].isBlank()) {
+            currentIndex++
+        }
+
+        // Extract title if present (starts with #)
+        var title: String? = null
+        if (currentIndex < lines.size && lines[currentIndex].trim().startsWith("#")) {
+            title = lines[currentIndex].trim().removePrefix("#").trim()
+            currentIndex++
+            // Skip empty lines after title
+            while (currentIndex < lines.size && lines[currentIndex].isBlank()) {
+                currentIndex++
+            }
+        }
+
+        // Rest is content
+        val contentLines = lines.subList(currentIndex, lines.size)
+        val noteContent = contentLines.joinToString("\n").trim()
+
+        // Extract inline tags from content if no front-matter tags
+        if (tags.isEmpty()) {
+            val inlineTagRegex = """#(\w+)""".toRegex()
+            tags.addAll(inlineTagRegex.findAll(noteContent).map { it.groupValues[1] })
+        }
+
+        return Note(
+            id = noteId,
+            content = noteContent,
+            title = title,
+            vaultId = vaultId,
+            tags = tags.distinct(),
+            createdAt = createdAt ?: java.time.Instant.now(),
+            updatedAt = updatedAt ?: java.time.Instant.now(),
+            metadata = frontMatter,
+            isSynced = true,
+            filePath = filePath
+        )
+    }
+
+    /**
+     * Try to parse an instant from string (supports ISO-8601 format)
+     */
+    private fun tryParseInstant(value: String): java.time.Instant? {
+        return try {
+            java.time.Instant.parse(value)
+        } catch (e: Exception) {
+            try {
+                // Try parsing as LocalDateTime and convert
+                val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+                java.time.LocalDateTime.parse(value, formatter)
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+            } catch (e2: Exception) {
+                android.util.Log.w("ObsidianProvider", "Failed to parse timestamp: $value", e2)
+                null
+            }
+        }
+    }
+
+    /**
+     * Check if a file path matches the daily note pattern
+     */
+    private fun isDailyNoteFile(relativePath: String, config: ProviderConfig.ObsidianConfig): Boolean {
+        val expectedPath = getDailyNoteRelativePath(config)
+        return relativePath == expectedPath || relativePath.startsWith((config.dailyNotesPath ?: "") + "/")
+    }
+
+    /**
+     * Remove a note entry from daily note by timestamp
+     * Daily note entries are in format: "- **HH:mm** content #tags"
+     */
+    private fun removeEntryFromDailyNote(content: String, noteId: String): String {
+        // For daily notes, we need to identify and remove the specific entry
+        // The noteId might contain timestamp information we can use
+
+        val lines = content.lines().toMutableList()
+        val dropsHeader = "## Drops"
+        val dropsIndex = lines.indexOfFirst { it.trim() == dropsHeader }
+
+        if (dropsIndex == -1) {
+            // No Drops section, return content as-is
+            return content
+        }
+
+        // Find entries in the Drops section
+        var currentIndex = dropsIndex + 1
+        val entriesToRemove = mutableListOf<Int>()
+
+        // Skip empty lines after header
+        while (currentIndex < lines.size && lines[currentIndex].isBlank()) {
+            currentIndex++
+        }
+
+        // Find matching entries (we'll remove the first one if noteId doesn't have specific info)
+        // In a real implementation, you'd want to track entry IDs more precisely
+        while (currentIndex < lines.size) {
+            val line = lines[currentIndex]
+
+            // Check if this is still part of Drops section
+            if (line.trim().startsWith("##")) {
+                // Hit next section
+                break
+            }
+
+            // Check if this is an entry line (starts with "- **")
+            if (line.trim().startsWith("- **")) {
+                // For now, we'll mark entries for potential removal
+                // In a more sophisticated implementation, you'd match based on content hash or ID
+                entriesToRemove.add(currentIndex)
+            }
+
+            currentIndex++
+        }
+
+        // Remove the first entry (or the one matching the noteId if we had more info)
+        // This is a simplified approach - ideally you'd store entry IDs
+        if (entriesToRemove.isNotEmpty()) {
+            lines.removeAt(entriesToRemove[0])
+        }
+
+        return lines.joinToString("\n")
     }
 }

@@ -5,7 +5,9 @@
       "Bash(gradle build:*)",
       "Bash(./gradlew test:*)",
       "Bash(./gradlew testDebugUnitTest:*)",
-      "Bash(./gradlew build:*)"
+      "Bash(./gradlew build:*)",
+      "SlashCommand(/sc:analyze)",
+      "Bash(./gradlew :app:compileDebugKotlin:*)"
     ],
     "deny": [],
     "ask": []

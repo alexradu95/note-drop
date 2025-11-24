@@ -35,6 +35,8 @@ fun SettingsScreen(
     val defaultVault by viewModel.defaultVault.collectAsState()
 
     var showCreateVaultDialog by remember { mutableStateOf(false) }
+    var showEditVaultDialog by remember { mutableStateOf<Vault?>(null) }
+    val vaultStats by viewModel.vaultStats.collectAsState()
 
     Scaffold(
         topBar = {
@@ -78,19 +80,23 @@ fun SettingsScreen(
             } else {
                 items(vaults) { vault ->
                     val isDefault = vault.id == defaultVault?.id
+                    val stats = vaultStats[vault.id]
                     android.util.Log.d("SettingsScreen", "Rendering vault: id=${vault.id}, name=${vault.name}, isDefault=$isDefault, defaultVaultId=${defaultVault?.id}")
                     VaultCard(
                         vault = vault,
                         isDefault = isDefault,
+                        stats = stats,
                         onSetDefault = {
                             android.util.Log.d("SettingsScreen", "VaultCard - Set as Default clicked for vault: ${vault.id}")
                             viewModel.setDefaultVault(vault.id)
                         },
                         onDelete = { viewModel.deleteVault(vault.id) },
+                        onEdit = { showEditVaultDialog = vault },
                         onViewConfig = {
                             android.util.Log.d("SettingsScreen", "VaultCard - Configure clicked for vault: ${vault.id}")
                             viewModel.loadVaultConfig(vault)
                         },
+                        onSyncNow = { viewModel.syncVault(vault.id) },
                         hasValidConfig = when (val config = vault.providerConfig) {
                             is ProviderConfig.ObsidianConfig ->
                                 config.vaultPath.isNotBlank() && config.vaultPath.startsWith("content://")
@@ -166,6 +172,18 @@ fun SettingsScreen(
         }
     }
 
+    // Edit vault dialog
+    showEditVaultDialog?.let { vault ->
+        EditVaultDialog(
+            vault = vault,
+            onDismiss = { showEditVaultDialog = null },
+            onSave = { name, description, dailyNotesPath ->
+                viewModel.updateVaultInfo(vault.id, name, description, dailyNotesPath)
+                showEditVaultDialog = null
+            }
+        )
+    }
+
     // Error snackbar
     uiState.error?.let { error ->
         Snackbar(
@@ -180,9 +198,12 @@ fun SettingsScreen(
 private fun VaultCard(
     vault: Vault,
     isDefault: Boolean,
+    stats: VaultStatistics?,
     onSetDefault: () -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     onViewConfig: () -> Unit,
+    onSyncNow: () -> Unit,
     hasValidConfig: Boolean = true
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -240,39 +261,92 @@ private fun VaultCard(
 
             Divider()
 
-            // Vault info
+            // Vault info and sync status
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.Folder,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = vault.providerType.name,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Folder,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = vault.providerType.name,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                // Sync status indicator
+                stats?.let { vaultStats ->
+                    SyncStatusChip(
+                        syncStatus = vaultStats.syncStatus,
+                        lastSyncTime = vault.lastSyncedAt
+                    )
+                }
+            }
+
+            // Vault statistics
+            stats?.let { vaultStats ->
+                Divider()
+                VaultStatisticsRow(stats = vaultStats)
             }
 
             // Action buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (!isDefault) {
-                    Button(
-                        onClick = onSetDefault,
+                // First row: Set Default / Sync Now / Edit
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!isDefault) {
+                        Button(
+                            onClick = onSetDefault,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Set as Default")
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onSyncNow,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Set as Default")
+                        Icon(
+                            Icons.Default.Sync,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Sync Now")
+                    }
+
+                    OutlinedButton(
+                        onClick = onEdit,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Edit")
                     }
                 }
+
+                // Second row: Configure or Reconnect
                 if (hasValidConfig) {
                     OutlinedButton(
                         onClick = onViewConfig,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
                             Icons.Default.Settings,
@@ -280,13 +354,12 @@ private fun VaultCard(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Configure")
+                        Text("View Configuration")
                     }
                 } else {
-                    // Show info that vault needs to be reconnected
                     OutlinedButton(
                         onClick = { /* TODO: Show reconnect dialog */ },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
                             Icons.Default.Warning,
@@ -294,7 +367,7 @@ private fun VaultCard(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Reconnect")
+                        Text("Reconnect Vault")
                     }
                 }
             }
@@ -522,6 +595,170 @@ private fun CreateVaultDialog(
 }
 
 @Composable
+private fun SyncStatusChip(
+    syncStatus: SyncStatus,
+    lastSyncTime: java.time.Instant?
+) {
+    val (text, icon, color) = when (syncStatus) {
+        SyncStatus.SYNCED -> Triple(
+            "Synced",
+            Icons.Default.CheckCircle,
+            MaterialTheme.colorScheme.primary
+        )
+        SyncStatus.SYNCING -> Triple(
+            "Syncing",
+            Icons.Default.Sync,
+            MaterialTheme.colorScheme.tertiary
+        )
+        SyncStatus.ERROR -> Triple(
+            "Error",
+            Icons.Default.Error,
+            MaterialTheme.colorScheme.error
+        )
+        SyncStatus.UNSYNCED -> Triple(
+            "Unsynced",
+            Icons.Default.CloudOff,
+            MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    AssistChip(
+        onClick = {},
+        label = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = color
+                )
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = color
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun VaultStatisticsRow(stats: VaultStatistics) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        StatisticItem(
+            label = "Notes",
+            value = stats.noteCount.toString()
+        )
+        StatisticItem(
+            label = "Unsynced",
+            value = stats.unsyncedCount.toString()
+        )
+        StatisticItem(
+            label = "Success Rate",
+            value = "${stats.syncSuccessRate}%"
+        )
+    }
+}
+
+@Composable
+private fun StatisticItem(
+    label: String,
+    value: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun EditVaultDialog(
+    vault: Vault,
+    onDismiss: () -> Unit,
+    onSave: (String, String?, String?) -> Unit
+) {
+    var vaultName by remember { mutableStateOf(vault.name) }
+    var vaultDescription by remember { mutableStateOf(vault.description ?: "") }
+    var dailyNotesPath by remember {
+        mutableStateOf(
+            (vault.providerConfig as? ProviderConfig.ObsidianConfig)?.dailyNotesPath ?: ""
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Vault") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = vaultName,
+                    onValueChange = { vaultName = it },
+                    label = { Text("Vault Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = vaultDescription,
+                    onValueChange = { vaultDescription = it },
+                    label = { Text("Description (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
+
+                if (vault.providerType == ProviderType.OBSIDIAN) {
+                    OutlinedTextField(
+                        value = dailyNotesPath,
+                        onValueChange = { dailyNotesPath = it },
+                        label = { Text("Daily Notes Path (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("e.g., Daily Notes") }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        vaultName.trim(),
+                        vaultDescription.trim().ifBlank { null },
+                        dailyNotesPath.trim().ifBlank { null }
+                    )
+                },
+                enabled = vaultName.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
 private fun AboutSection() {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -551,4 +788,24 @@ private fun AboutSection() {
             )
         }
     }
+}
+
+/**
+ * Data class for vault statistics
+ */
+data class VaultStatistics(
+    val noteCount: Int,
+    val unsyncedCount: Int,
+    val syncSuccessRate: Int,
+    val syncStatus: SyncStatus
+)
+
+/**
+ * Enum for sync status
+ */
+enum class SyncStatus {
+    SYNCED,
+    SYNCING,
+    ERROR,
+    UNSYNCED
 }
