@@ -274,37 +274,72 @@ class ObsidianProvider @Inject constructor(
      * Parse Obsidian daily notes format string and generate folder path + filename
      * Format example: "YYYY/MM-MMMM/[Week-]WW/YYYY-MM-DD"
      * Result: ("2025/11-November/Week-48", "2025-11-24.md")
+     *
+     * Supports moment.js tokens used by Obsidian:
+     * - YYYY: 4-digit year
+     * - YY: 2-digit year
+     * - MMMM: Full month name (November)
+     * - MMM: Short month name (Nov)
+     * - MM: 2-digit month (11)
+     * - M: Month without leading zero (11)
+     * - DD: 2-digit day (24)
+     * - D: Day without leading zero (24)
+     * - WW: ISO week number with leading zero (48)
+     * - W: ISO week number without leading zero (48)
+     * - [...]: Literal text
      */
     private fun parseDailyNotesFormat(baseFolder: String?, format: String): Pair<String, String> {
         val now = java.time.LocalDate.now()
         val year = now.year
         val month = now.monthValue
-        val monthName = now.month.toString().lowercase().replaceFirstChar { it.uppercase() }
         val day = now.dayOfMonth
         val weekOfYear = now.get(java.time.temporal.WeekFields.ISO.weekOfYear())
 
-        var result = format
+        // Get month names
+        val fullMonthName = now.month.getDisplayName(
+            java.time.format.TextStyle.FULL,
+            java.util.Locale.ENGLISH
+        )
+        val shortMonthName = now.month.getDisplayName(
+            java.time.format.TextStyle.SHORT,
+            java.util.Locale.ENGLISH
+        )
 
-        // Replace Obsidian/moment.js format tokens with actual values
-        // IMPORTANT: Replace longer tokens first to avoid substring collisions (MMMM before MM, DD before D, etc.)
-        result = result.replace("MMMM", monthName)
-        result = result.replace("YYYY", year.toString())
-        result = result.replace("MM", String.format("%02d", month))
-        result = result.replace("WW", String.format("%02d", weekOfYear))
-        result = result.replace("DD", String.format("%02d", day))
-
-        // Handle literal text in brackets [...]
+        // Handle literal text in brackets [...] first
         val literalRegex = """\[([^\]]+)\]""".toRegex()
-        result = literalRegex.replace(result) { matchResult ->
-            matchResult.groupValues[1]
+        var result = literalRegex.replace(format) { matchResult ->
+            // Use a placeholder that won't conflict with date tokens
+            "\u0000${matchResult.groupValues[1]}\u0000"
         }
+
+        // Token replacements - IMPORTANT: Order matters! Longer tokens first
+        val tokens = listOf(
+            "YYYY" to year.toString(),
+            "YY" to (year % 100).toString().padStart(2, '0'),
+            "MMMM" to fullMonthName,
+            "MMM" to shortMonthName,
+            "MM" to month.toString().padStart(2, '0'),
+            "M" to month.toString(),
+            "DD" to day.toString().padStart(2, '0'),
+            "D" to day.toString(),
+            "WW" to weekOfYear.toString().padStart(2, '0'),
+            "W" to weekOfYear.toString()
+        )
+
+        // Apply replacements
+        for ((token, value) in tokens) {
+            result = result.replace(token, value)
+        }
+
+        // Restore literal text (remove placeholders)
+        result = result.replace("\u0000", "")
 
         // Split into path components - last component is the filename
         val components = result.split("/")
         val filename = if (components.isNotEmpty()) {
             "${components.last()}.md"
         } else {
-            "$year-${String.format("%02d", month)}-${String.format("%02d", day)}.md"
+            "$year-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}.md"
         }
 
         // Build folder path (everything except the last component)

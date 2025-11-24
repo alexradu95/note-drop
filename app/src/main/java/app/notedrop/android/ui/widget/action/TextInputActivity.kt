@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import app.notedrop.android.domain.model.Note
 import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.VaultRepository
+import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.ui.theme.NoteDropTheme
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
 import dagger.hilt.android.AndroidEntryPoint
@@ -39,6 +40,9 @@ class TextInputActivity : ComponentActivity() {
 
     @Inject
     lateinit var vaultRepository: VaultRepository
+
+    @Inject
+    lateinit var providerFactory: ProviderFactory
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -152,7 +156,34 @@ class TextInputActivity : ComponentActivity() {
 
                 val result = noteRepository.createNote(note)
 
-                if (result.isSuccess) {
+                result.onSuccess { savedNote ->
+                    android.util.Log.d("TextInputActivity", "Note saved to database: ${savedNote.id}")
+
+                    // Sync to provider if configured
+                    val noteProvider = providerFactory.getProvider(vault.providerType)
+                    android.util.Log.d("TextInputActivity", "Got provider: ${noteProvider.javaClass.simpleName}")
+
+                    val isAvailable = noteProvider.isAvailable(vault)
+                    android.util.Log.d("TextInputActivity", "Provider available: $isAvailable")
+
+                    if (isAvailable) {
+                        android.util.Log.d("TextInputActivity", "Calling provider.saveNote()")
+                        val providerResult = noteProvider.saveNote(savedNote, vault)
+                        providerResult.onSuccess { filePath ->
+                            android.util.Log.d("TextInputActivity", "Provider save success: $filePath")
+                            // Update the note with the file path
+                            val updatedNote = savedNote.copy(
+                                filePath = filePath,
+                                isSynced = true
+                            )
+                            noteRepository.updateNote(updatedNote)
+                        }.onFailure { providerError ->
+                            android.util.Log.e("TextInputActivity", "Failed to save to provider", providerError)
+                        }
+                    } else {
+                        android.util.Log.w("TextInputActivity", "Provider not available, skipping sync")
+                    }
+
                     // Update widget to show saved text (preview)
                     val glanceIdString = intent.getStringExtra("glance_id")
                     if (glanceIdString != null) {
