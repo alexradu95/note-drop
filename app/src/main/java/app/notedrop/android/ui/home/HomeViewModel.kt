@@ -30,13 +30,35 @@ class HomeViewModel @Inject constructor(
     private val _selectedFilter = MutableStateFlow(NoteFilter.ALL)
     val selectedFilter: StateFlow<NoteFilter> = _selectedFilter.asStateFlow()
 
-    // All notes from the repository
-    private val allNotes = noteRepository.getAllNotes()
+    private val _selectedVault = MutableStateFlow<app.notedrop.android.domain.model.Vault?>(null)
+    val selectedVault: StateFlow<app.notedrop.android.domain.model.Vault?> = _selectedVault.asStateFlow()
+
+    // All vaults
+    val allVaults = vaultRepository.getAllVaults()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    // All notes from the repository (filtered by selected vault)
+    private val allNotes = combine(
+        _selectedVault,
+        defaultVault
+    ) { selected, default ->
+        val activeVault = selected ?: default
+        activeVault?.id
+    }.flatMapLatest { vaultId ->
+        if (vaultId != null) {
+            noteRepository.getNotesByVault(vaultId)
+        } else {
+            noteRepository.getAllNotes()
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     // Today's notes
     val todaysNotes = noteRepository.getTodaysNotes()

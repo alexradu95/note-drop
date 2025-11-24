@@ -46,6 +46,46 @@ class SettingsViewModel @Inject constructor(
             initialValue = null
         )
 
+    // Vault statistics flow
+    val vaultStats = vaults.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    ).let { vaultsFlow ->
+        kotlinx.coroutines.flow.flow {
+            vaultsFlow.collect { vaultsList ->
+                val statsMap = vaultsList.associate { vault ->
+                    val notes = noteRepository.getNotesForVault(vault.id)
+                    val unsyncedNotes = notes.filter { !it.isSynced }
+                    val syncSuccessRate = if (notes.isNotEmpty()) {
+                        ((notes.size - unsyncedNotes.size) * 100) / notes.size
+                    } else {
+                        100
+                    }
+
+                    val syncStatus = when {
+                        _uiState.value.syncingVaultIds.contains(vault.id) -> app.notedrop.android.ui.settings.SyncStatus.SYNCING
+                        unsyncedNotes.isEmpty() -> app.notedrop.android.ui.settings.SyncStatus.SYNCED
+                        unsyncedNotes.size == notes.size && notes.isNotEmpty() -> app.notedrop.android.ui.settings.SyncStatus.ERROR
+                        else -> app.notedrop.android.ui.settings.SyncStatus.UNSYNCED
+                    }
+
+                    vault.id to app.notedrop.android.ui.settings.VaultStatistics(
+                        noteCount = notes.size,
+                        unsyncedCount = unsyncedNotes.size,
+                        syncSuccessRate = syncSuccessRate,
+                        syncStatus = syncStatus
+                    )
+                }
+                emit(statsMap)
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+    }
+
     fun createVault(
         name: String,
         description: String?,
@@ -193,6 +233,64 @@ class SettingsViewModel @Inject constructor(
             currentVault = null
         )
     }
+
+    /**
+     * Update vault information (name, description, daily notes path)
+     */
+    fun updateVaultInfo(vaultId: String, name: String, description: String?, dailyNotesPath: String?) {
+        viewModelScope.launch {
+            val vault = vaultRepository.getVaultById(vaultId)
+            if (vault != null) {
+                val updatedVault = vault.copy(
+                    name = name,
+                    description = description,
+                    providerConfig = if (vault.providerConfig is ProviderConfig.ObsidianConfig) {
+                        (vault.providerConfig as ProviderConfig.ObsidianConfig).copy(
+                            dailyNotesPath = dailyNotesPath
+                        )
+                    } else {
+                        vault.providerConfig
+                    }
+                )
+                vaultRepository.updateVault(updatedVault)
+            }
+        }
+    }
+
+    /**
+     * Trigger a sync for a specific vault
+     */
+    fun syncVault(vaultId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                syncingVaultIds = _uiState.value.syncingVaultIds + vaultId
+            )
+
+            try {
+                // Get all notes for this vault
+                val notes = noteRepository.getNotesForVault(vaultId)
+                val unsyncedNotes = notes.filter { !it.isSynced }
+
+                // Sync each unsynced note
+                unsyncedNotes.forEach { note ->
+                    noteRepository.syncNote(note)
+                }
+
+                // Update last synced timestamp
+                vaultRepository.updateLastSynced(vaultId)
+
+                _uiState.value = _uiState.value.copy(
+                    syncingVaultIds = _uiState.value.syncingVaultIds - vaultId
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsViewModel", "Error syncing vault", e)
+                _uiState.value = _uiState.value.copy(
+                    syncingVaultIds = _uiState.value.syncingVaultIds - vaultId,
+                    error = "Failed to sync vault: ${e.message}"
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -206,5 +304,6 @@ data class SettingsUiState(
     val showConfigScreen: Boolean = false,
     val vaultConfig: ObsidianVaultConfig? = null,
     val currentVault: Vault? = null,
+    val syncingVaultIds: Set<String> = emptySet(),
     val error: String? = null
 )

@@ -24,12 +24,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.documentfile.provider.DocumentFile
+import app.notedrop.android.domain.model.Note
+import app.notedrop.android.domain.repository.NoteRepository
+import app.notedrop.android.domain.repository.VaultRepository
+import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.ui.theme.NoteDropTheme
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import javax.inject.Inject
 
 /**
  * Transparent activity for instant camera capture
@@ -40,14 +52,26 @@ import java.util.concurrent.Executors
  * - Auto-close after capture
  * - Permission handling
  */
+@AndroidEntryPoint
 class TransparentCameraActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "TransparentCameraActivity"
     }
 
+    @Inject
+    lateinit var noteRepository: NoteRepository
+
+    @Inject
+    lateinit var vaultRepository: VaultRepository
+
+    @Inject
+    lateinit var providerFactory: ProviderFactory
+
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
+
+    private val coroutineScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -171,7 +195,10 @@ class TransparentCameraActivity : ComponentActivity() {
                         Toast.LENGTH_SHORT
                     ).show()
 
-                    // TODO: Save photo to note repository
+                    // Save photo to note repository
+                    coroutineScope.launch {
+                        savePhotoNote(photoFile)
+                    }
 
                     // Close activity
                     finish()
@@ -188,6 +215,90 @@ class TransparentCameraActivity : ComponentActivity() {
                 }
             }
         )
+    }
+
+    /**
+     * Save photo to vault and create note
+     */
+    private suspend fun savePhotoNote(tempFile: File) {
+        try {
+            // Get default vault
+            val vault = vaultRepository.getDefaultVault()
+            if (vault == null) {
+                Log.w(TAG, "No default vault configured, photo not saved")
+                tempFile.delete()
+                return
+            }
+
+            // Copy photo file to vault's attachments folder
+            val photoFileName = tempFile.name
+            val photoRelativePath = "attachments/$photoFileName"
+
+            // Get vault root and create attachments folder
+            val vaultUri = android.net.Uri.parse((vault.providerConfig as? app.notedrop.android.domain.model.ProviderConfig.ObsidianConfig)?.vaultPath)
+            val vaultRoot = DocumentFile.fromTreeUri(this, vaultUri)
+
+            if (vaultRoot != null && vaultRoot.exists()) {
+                // Find or create attachments folder
+                val attachmentsFolder = vaultRoot.findFile("attachments") ?: vaultRoot.createDirectory("attachments")
+
+                if (attachmentsFolder != null) {
+                    // Create photo file in vault
+                    val photoFile = attachmentsFolder.createFile("image/jpeg", photoFileName)
+
+                    if (photoFile != null) {
+                        // Copy temp file to vault
+                        contentResolver.openOutputStream(photoFile.uri)?.use { outputStream ->
+                            tempFile.inputStream().use { inputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+
+                        Log.d(TAG, "Photo file saved to vault: $photoRelativePath")
+
+                        // Create note with photo reference
+                        val note = Note(
+                            content = "![[${photoRelativePath}]]\n\nPhoto captured from widget",
+                            title = "Photo Note",
+                            vaultId = vault.id,
+                            tags = listOf("photo", "camera"),
+                            createdAt = Instant.now(),
+                            updatedAt = Instant.now()
+                        )
+
+                        val result = noteRepository.createNote(note)
+
+                        result.onSuccess { savedNote ->
+                            Log.d(TAG, "Photo note saved to database: ${savedNote.id}")
+
+                            // Sync to provider
+                            val noteProvider = providerFactory.getProvider(vault.providerType)
+                            if (noteProvider.isAvailable(vault)) {
+                                val providerResult = noteProvider.saveNote(savedNote, vault)
+                                providerResult.onSuccess { filePath ->
+                                    Log.d(TAG, "Photo note synced to provider: $filePath")
+                                    noteRepository.updateNote(savedNote.copy(
+                                        filePath = filePath,
+                                        isSynced = true
+                                    ))
+                                }.onFailure { providerError ->
+                                    Log.e(TAG, "Failed to sync photo note to provider", providerError)
+                                }
+                            }
+                        }.onFailure { error ->
+                            Log.e(TAG, "Failed to save photo note to database", error)
+                        }
+                    }
+                }
+            }
+
+            // Clean up temp file
+            tempFile.delete()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save photo note", e)
+            tempFile.delete()
+        }
     }
 
     override fun onDestroy() {

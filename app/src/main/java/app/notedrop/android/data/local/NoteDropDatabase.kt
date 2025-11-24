@@ -6,10 +6,12 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.notedrop.android.data.local.dao.NoteDao
+import app.notedrop.android.data.local.dao.SyncQueueDao
 import app.notedrop.android.data.local.dao.SyncStateDao
 import app.notedrop.android.data.local.dao.TemplateDao
 import app.notedrop.android.data.local.dao.VaultDao
 import app.notedrop.android.data.local.entity.NoteEntity
+import app.notedrop.android.data.local.entity.SyncQueueEntity
 import app.notedrop.android.data.local.entity.SyncStateEntity
 import app.notedrop.android.data.local.entity.TemplateEntity
 import app.notedrop.android.data.local.entity.VaultEntity
@@ -23,15 +25,17 @@ import app.notedrop.android.data.local.entity.VaultEntity
  * @property vaultDao DAO for vault operations
  * @property templateDao DAO for template operations
  * @property syncStateDao DAO for sync state operations
+ * @property syncQueueDao DAO for sync queue operations
  */
 @Database(
     entities = [
         NoteEntity::class,
         VaultEntity::class,
         TemplateEntity::class,
-        SyncStateEntity::class
+        SyncStateEntity::class,
+        SyncQueueEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -41,6 +45,7 @@ abstract class NoteDropDatabase : RoomDatabase() {
     abstract fun vaultDao(): VaultDao
     abstract fun templateDao(): TemplateDao
     abstract fun syncStateDao(): SyncStateDao
+    abstract fun syncQueueDao(): SyncQueueDao
 
     companion object {
         const val DATABASE_NAME = "notedrop_database"
@@ -91,6 +96,42 @@ abstract class NoteDropDatabase : RoomDatabase() {
                 // Add filePath column to notes table
                 database.execSQL("""
                     ALTER TABLE notes ADD COLUMN filePath TEXT
+                """.trimIndent())
+            }
+        }
+
+        /**
+         * Migration from version 3 to 4: Add sync_queue table for retry logic
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Create sync_queue table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS sync_queue (
+                        noteId TEXT PRIMARY KEY NOT NULL,
+                        vaultId TEXT NOT NULL,
+                        retryCount INTEGER NOT NULL,
+                        lastAttemptAt INTEGER NOT NULL,
+                        nextRetryAt INTEGER NOT NULL,
+                        errorMessage TEXT,
+                        createdAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                // Create indices for better query performance
+                database.execSQL("""
+                    CREATE INDEX IF NOT EXISTS index_sync_queue_vaultId
+                    ON sync_queue(vaultId)
+                """.trimIndent())
+
+                database.execSQL("""
+                    CREATE INDEX IF NOT EXISTS index_sync_queue_nextRetryAt
+                    ON sync_queue(nextRetryAt)
+                """.trimIndent())
+
+                database.execSQL("""
+                    CREATE INDEX IF NOT EXISTS index_sync_queue_retryCount
+                    ON sync_queue(retryCount)
                 """.trimIndent())
             }
         }

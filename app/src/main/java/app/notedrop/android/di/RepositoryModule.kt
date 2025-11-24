@@ -7,10 +7,12 @@ import app.notedrop.android.data.provider.ObsidianProvider
 import app.notedrop.android.data.provider.filesystem.AndroidFileSystemProvider
 import app.notedrop.android.data.provider.filesystem.FileSystemProvider
 import app.notedrop.android.data.repository.NoteRepositoryImpl
+import app.notedrop.android.data.repository.SyncQueueRepositoryImpl
 import app.notedrop.android.data.repository.SyncStateRepositoryImpl
 import app.notedrop.android.data.repository.TemplateRepositoryImpl
 import app.notedrop.android.data.repository.VaultRepositoryImpl
 import app.notedrop.android.domain.repository.NoteRepository
+import app.notedrop.android.domain.repository.SyncQueueRepository
 import app.notedrop.android.domain.repository.SyncStateRepository
 import app.notedrop.android.domain.repository.TemplateRepository
 import app.notedrop.android.domain.repository.VaultRepository
@@ -58,6 +60,12 @@ abstract class RepositoryModule {
     abstract fun bindSyncStateRepository(
         syncStateRepositoryImpl: SyncStateRepositoryImpl
     ): SyncStateRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSyncQueueRepository(
+        syncQueueRepositoryImpl: SyncQueueRepositoryImpl
+    ): SyncQueueRepository
 
     // ========== Providers ==========
 

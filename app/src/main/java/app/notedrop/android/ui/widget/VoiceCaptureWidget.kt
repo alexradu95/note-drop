@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
@@ -37,6 +38,7 @@ class VoiceCaptureWidget : GlanceAppWidget() {
 
     companion object {
         val RECORDING_STATUS_KEY = stringPreferencesKey("voice_widget_recording_status")
+        val RECORDING_DURATION_KEY = intPreferencesKey("voice_widget_recording_duration")
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
