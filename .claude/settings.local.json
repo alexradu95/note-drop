@@ -7,7 +7,12 @@
       "Bash(./gradlew testDebugUnitTest:*)",
       "Bash(./gradlew build:*)",
       "SlashCommand(/sc:analyze)",
-      "Bash(./gradlew :app:compileDebugKotlin:*)"
+      "Bash(./gradlew :app:compileDebugKotlin:*)",
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(dir)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

@@ -70,6 +70,12 @@ interface NoteDao {
     suspend fun getUnsyncedNotes(): List<NoteEntity>
 
     /**
+     * Get unsynced notes for a specific vault.
+     */
+    @Query("SELECT * FROM notes WHERE isSynced = 0 AND vaultId = :vaultId ORDER BY createdAt DESC")
+    suspend fun getUnsyncedNotesByVault(vaultId: String): List<NoteEntity>
+
+    /**
      * Get notes count by vault.
      */
     @Query("SELECT COUNT(*) FROM notes WHERE vaultId = :vaultId")

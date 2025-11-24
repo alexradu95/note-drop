@@ -52,6 +52,7 @@ class VoiceCaptureWidget : GlanceAppWidget() {
     @Composable
     private fun VoiceCaptureContent() {
         val recordingStatus = currentState(RECORDING_STATUS_KEY) ?: "idle"
+        val recordingDuration = currentState(RECORDING_DURATION_KEY) ?: 0
         val isRecording = recordingStatus == "recording"
 
         Column(
@@ -74,15 +75,28 @@ class VoiceCaptureWidget : GlanceAppWidget() {
 
             Spacer(modifier = GlanceModifier.height(8.dp))
 
-            Text(
-                text = if (isRecording) "Recording" else "Voice",
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (isRecording) GlanceTheme.colors.onErrorContainer
-                    else GlanceTheme.colors.onPrimaryContainer
+            if (isRecording && recordingDuration > 0) {
+                val minutes = recordingDuration / 60
+                val seconds = recordingDuration % 60
+                Text(
+                    text = String.format("%d:%02d", minutes, seconds),
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GlanceTheme.colors.onErrorContainer
+                    )
                 )
-            )
+            } else {
+                Text(
+                    text = if (isRecording) "Recording" else "Voice",
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isRecording) GlanceTheme.colors.onErrorContainer
+                        else GlanceTheme.colors.onPrimaryContainer
+                    )
+                )
+            }
         }
     }
 }

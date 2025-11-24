@@ -22,6 +22,7 @@ import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
+import app.notedrop.android.ui.widget.VoiceCaptureWidget
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -170,13 +171,24 @@ class VoiceRecordingService : Service() {
             // Update widget to idle state
             serviceScope.launch {
                 val glanceManager = GlanceAppWidgetManager(this@VoiceRecordingService)
-                val glanceIds = glanceManager.getGlanceIds(InteractiveQuickCaptureWidget::class.java)
 
-                glanceIds.forEach { glanceId ->
+                // Update InteractiveQuickCaptureWidget
+                val interactiveIds = glanceManager.getGlanceIds(InteractiveQuickCaptureWidget::class.java)
+                interactiveIds.forEach { glanceId ->
                     updateAppWidgetState(this@VoiceRecordingService, glanceId) { prefs ->
                         prefs[InteractiveQuickCaptureWidget.RECORDING_STATUS_KEY] = "idle"
                     }
                     InteractiveQuickCaptureWidget().update(this@VoiceRecordingService, glanceId)
+                }
+
+                // Update VoiceCaptureWidget
+                val voiceIds = glanceManager.getGlanceIds(VoiceCaptureWidget::class.java)
+                voiceIds.forEach { glanceId ->
+                    updateAppWidgetState(this@VoiceRecordingService, glanceId) { prefs ->
+                        prefs[VoiceCaptureWidget.RECORDING_STATUS_KEY] = "idle"
+                        prefs[VoiceCaptureWidget.RECORDING_DURATION_KEY] = 0
+                    }
+                    VoiceCaptureWidget().update(this@VoiceRecordingService, glanceId)
                 }
             }
 
@@ -196,6 +208,33 @@ class VoiceRecordingService : Service() {
                 val notification = createNotification(formatDuration(recordingDuration))
                 val notificationManager = getSystemService(NotificationManager::class.java)
                 notificationManager.notify(NOTIFICATION_ID, notification)
+
+                // Update widget with duration
+                updateWidgetDuration(recordingDuration)
+            }
+        }
+    }
+
+    private fun updateWidgetDuration(duration: Int) {
+        serviceScope.launch {
+            val glanceManager = GlanceAppWidgetManager(this@VoiceRecordingService)
+
+            // Update VoiceCaptureWidget
+            val voiceWidgetIds = glanceManager.getGlanceIds(VoiceCaptureWidget::class.java)
+            voiceWidgetIds.forEach { glanceId ->
+                updateAppWidgetState(this@VoiceRecordingService, glanceId) { prefs ->
+                    prefs[VoiceCaptureWidget.RECORDING_DURATION_KEY] = duration
+                }
+                VoiceCaptureWidget().update(this@VoiceRecordingService, glanceId)
+            }
+
+            // Update InteractiveQuickCaptureWidget if needed
+            val interactiveWidgetIds = glanceManager.getGlanceIds(InteractiveQuickCaptureWidget::class.java)
+            interactiveWidgetIds.forEach { glanceId ->
+                updateAppWidgetState(this@VoiceRecordingService, glanceId) { prefs ->
+                    prefs[InteractiveQuickCaptureWidget.RECORDING_STATUS_KEY] = "recording"
+                }
+                InteractiveQuickCaptureWidget().update(this@VoiceRecordingService, glanceId)
             }
         }
     }

@@ -3,7 +3,9 @@ package app.notedrop.android.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.notedrop.android.domain.model.Note
+import app.notedrop.android.domain.model.SyncState
 import app.notedrop.android.domain.repository.NoteRepository
+import app.notedrop.android.domain.repository.SyncStateRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,6 +13,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -21,7 +25,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
-    private val vaultRepository: VaultRepository
+    private val vaultRepository: VaultRepository,
+    private val syncStateRepository: SyncStateRepository
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -76,6 +81,27 @@ class HomeViewModel @Inject constructor(
             initialValue = null
         )
 
+    // Sync states for all notes (noteId -> SyncState)
+    val syncStatesMap = combine(
+        _selectedVault,
+        defaultVault
+    ) { selected, default ->
+        val activeVault = selected ?: default
+        activeVault?.id
+    }.flatMapLatest { vaultId ->
+        if (vaultId != null) {
+            syncStateRepository.getSyncStatesForVault(vaultId)
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    }.map { states ->
+        states.associateBy { it.noteId }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyMap()
+    )
+
     // Filtered notes based on search and filter
     val filteredNotes = combine(
         allNotes,
@@ -126,6 +152,17 @@ class HomeViewModel @Inject constructor(
 
     fun clearSearch() {
         _searchQuery.value = ""
+    }
+
+    fun selectVault(vault: app.notedrop.android.domain.model.Vault) {
+        _selectedVault.value = vault
+    }
+
+    /**
+     * Get sync state for a specific note.
+     */
+    fun getSyncState(noteId: String): SyncState? {
+        return syncStatesMap.value[noteId]
     }
 }
 

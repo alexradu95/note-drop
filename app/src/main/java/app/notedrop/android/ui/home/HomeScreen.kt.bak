@@ -13,7 +13,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.notedrop.android.domain.model.Note
-import app.notedrop.android.domain.model.SyncStatus
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -34,7 +33,6 @@ fun HomeScreen(
     val defaultVault by viewModel.defaultVault.collectAsState()
     val allVaults by viewModel.allVaults.collectAsState()
     val selectedVault by viewModel.selectedVault.collectAsState()
-    val syncStatesMap by viewModel.syncStatesMap.collectAsState()
 
     Scaffold(
         topBar = {
@@ -114,10 +112,8 @@ fun HomeScreen(
                         items = filteredNotes,
                         key = { it.id }
                     ) { note ->
-                        val syncState = syncStatesMap[note.id]
                         NoteCard(
                             note = note,
-                            syncState = syncState,
                             onDelete = { viewModel.deleteNote(note.id) }
                         )
                     }
@@ -185,7 +181,6 @@ private fun FilterChips(
 @Composable
 private fun NoteCard(
     note: Note,
-    syncState: app.notedrop.android.domain.model.SyncState?,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -197,24 +192,17 @@ private fun NoteCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Header with timestamp, sync status, and actions
+            // Header with timestamp and actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = formatTimestamp(note.createdAt),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    // Sync status indicator
-                    SyncStatusIcon(syncState)
-                }
+                Text(
+                    text = formatTimestamp(note.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 IconButton(onClick = { showDeleteDialog = true }) {
                     Icon(
                         Icons.Default.Delete,
@@ -322,52 +310,6 @@ private fun NoteCard(
             }
         )
     }
-}
-
-/**
- * Sync status icon indicator.
- */
-@Composable
-private fun SyncStatusIcon(syncState: app.notedrop.android.domain.model.SyncState?) {
-    val (icon, tint, description) = when (syncState?.status) {
-        SyncStatus.SYNCED -> Triple(
-            Icons.Default.CloudDone,
-            MaterialTheme.colorScheme.primary,
-            "Synced"
-        )
-        SyncStatus.PENDING_UPLOAD -> Triple(
-            Icons.Default.CloudUpload,
-            MaterialTheme.colorScheme.tertiary,
-            "Syncing..."
-        )
-        SyncStatus.PENDING_DOWNLOAD -> Triple(
-            Icons.Default.CloudDownload,
-            MaterialTheme.colorScheme.tertiary,
-            "Downloading..."
-        )
-        SyncStatus.ERROR -> Triple(
-            Icons.Default.CloudOff,
-            MaterialTheme.colorScheme.error,
-            "Sync failed: ${syncState.errorMessage ?: "Unknown error"}"
-        )
-        SyncStatus.CONFLICT -> Triple(
-            Icons.Default.Warning,
-            MaterialTheme.colorScheme.error,
-            "Sync conflict"
-        )
-        SyncStatus.NEVER_SYNCED, null -> Triple(
-            Icons.Default.CloudQueue,
-            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            "Not synced"
-        )
-    }
-
-    Icon(
-        imageVector = icon,
-        contentDescription = description,
-        modifier = Modifier.size(14.dp),
-        tint = tint
-    )
 }
 
 @Composable

@@ -73,6 +73,10 @@ class NoteRepositoryImpl @Inject constructor(
         return noteDao.getUnsyncedNotes().map { it.toDomain() }
     }
 
+    override suspend fun getUnsyncedNotes(vaultId: String): List<Note> {
+        return noteDao.getUnsyncedNotesByVault(vaultId).map { it.toDomain() }
+    }
+
     override suspend fun createNote(note: Note): Result<Note> {
         return try {
             noteDao.insertNote(note.toEntity())

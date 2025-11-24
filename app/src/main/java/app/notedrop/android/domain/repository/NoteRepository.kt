@@ -55,6 +55,11 @@ interface NoteRepository {
     suspend fun getUnsyncedNotes(): List<Note>
 
     /**
+     * Get unsynced notes for a specific vault.
+     */
+    suspend fun getUnsyncedNotes(vaultId: String): List<Note>
+
+    /**
      * Create a new note.
      */
     suspend fun createNote(note: Note): Result<Note>
