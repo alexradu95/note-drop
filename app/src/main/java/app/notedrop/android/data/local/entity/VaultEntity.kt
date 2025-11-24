@@ -60,7 +60,6 @@ fun VaultEntity.toDomain(): Vault {
 
 /**
  * Convert ProviderConfig to JSON string.
- * Simple implementation - will be enhanced with proper JSON library.
  */
 private fun providerConfigToJson(config: ProviderConfig): String {
     return when (config) {
@@ -68,29 +67,37 @@ private fun providerConfigToJson(config: ProviderConfig): String {
             """{"storagePath":"${config.storagePath}"}"""
         }
         is ProviderConfig.ObsidianConfig -> {
-            """{"vaultPath":"${config.vaultPath}","dailyNotesPath":"${config.dailyNotesPath}","templatePath":"${config.templatePath}","useFrontMatter":${config.useFrontMatter}}"""
+            """{"vaultPath":"${config.vaultPath}","dailyNotesPath":"${config.dailyNotesPath}","dailyNotesFormat":"${config.dailyNotesFormat}","templatePath":"${config.templatePath}","useFrontMatter":${config.useFrontMatter}}"""
         }
-        is ProviderConfig.NotionConfig -> {
-            """{"workspaceId":"${config.workspaceId}","databaseId":"${config.databaseId}"}"""
-        }
-        is ProviderConfig.CustomConfig -> {
-            "{}" // TODO: Implement proper serialization
-        }
-
-        else -> {}
-    } as String
+    }
 }
 
 /**
  * Convert JSON string to ProviderConfig based on provider type.
- * Simple implementation - will be enhanced with proper JSON library.
  */
 private fun jsonToProviderConfig(type: String, json: String): ProviderConfig {
-    // TODO: Implement proper JSON parsing
-    return when (type) {
-        "LOCAL" -> ProviderConfig.LocalConfig(storagePath = "")
-        "OBSIDIAN" -> ProviderConfig.ObsidianConfig(vaultPath = "")
-        "NOTION" -> ProviderConfig.NotionConfig(workspaceId = "")
-        else -> ProviderConfig.CustomConfig(config = emptyMap())
+    return try {
+        val jsonObj = org.json.JSONObject(json)
+        when (type) {
+            "LOCAL" -> ProviderConfig.LocalConfig(
+                storagePath = jsonObj.optString("storagePath", "")
+            )
+            "OBSIDIAN" -> ProviderConfig.ObsidianConfig(
+                vaultPath = jsonObj.optString("vaultPath", ""),
+                dailyNotesPath = jsonObj.optString("dailyNotesPath").takeIf { it.isNotBlank() },
+                dailyNotesFormat = jsonObj.optString("dailyNotesFormat").takeIf { it.isNotBlank() },
+                templatePath = jsonObj.optString("templatePath").takeIf { it.isNotBlank() },
+                useFrontMatter = jsonObj.optBoolean("useFrontMatter", true)
+            )
+            else -> ProviderConfig.LocalConfig(storagePath = "")
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        // Fallback to empty config
+        when (type) {
+            "LOCAL" -> ProviderConfig.LocalConfig(storagePath = "")
+            "OBSIDIAN" -> ProviderConfig.ObsidianConfig(vaultPath = "")
+            else -> ProviderConfig.LocalConfig(storagePath = "")
+        }
     }
 }

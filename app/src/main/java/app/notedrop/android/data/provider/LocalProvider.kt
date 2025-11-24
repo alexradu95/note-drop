@@ -26,7 +26,7 @@ class LocalProvider @Inject constructor(
     private val markdownParser: MarkdownParser
 ) : NoteProvider {
 
-    override suspend fun saveNote(note: Note, vault: Vault): Result<Unit> {
+    override suspend fun saveNote(note: Note, vault: Vault): Result<String> {
         return try {
             val config = vault.providerConfig as? ProviderConfig.LocalConfig
                 ?: return Result.failure(IllegalArgumentException("Invalid Local config"))
@@ -40,6 +40,11 @@ class LocalProvider @Inject constructor(
             val content = markdownParser.serialize(note, serializerConfig)
 
             fileSystemProvider.writeFile(file.absolutePath, content)
+
+            // Return relative path from storage root
+            val baseDir = File(config.storagePath)
+            val relativePath = file.relativeTo(baseDir).path
+            Result.success(relativePath)
         } catch (e: Exception) {
             Result.failure(e)
         }

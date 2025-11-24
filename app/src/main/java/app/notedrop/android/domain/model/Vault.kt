@@ -33,10 +33,7 @@ data class Vault(
  */
 enum class ProviderType {
     LOCAL,      // Local device storage (simple folder with txt/md files)
-    OBSIDIAN,   // Obsidian vault
-    NOTION,     // Notion workspace
-    CAPACITIES, // Capacities workspace
-    CUSTOM      // Custom provider (future extensibility)
+    OBSIDIAN    // Obsidian vault
 }
 
 /**
@@ -62,6 +59,7 @@ sealed class ProviderConfig {
         // Storage paths
         val vaultPath: String,
         val dailyNotesPath: String? = null,
+        val dailyNotesFormat: String? = null, // Obsidian date format (e.g., "YYYY/MM-MMMM/[Week-]WW/YYYY-MM-DD")
         val templatePath: String? = null,
         val attachmentsPath: String? = "attachments",
 
@@ -81,48 +79,6 @@ sealed class ProviderConfig {
         val enableTemplateVariables: Boolean = true
     ) : ProviderConfig()
 
-    /**
-     * Configuration for Notion provider.
-     * API-based sync with Notion workspace.
-     */
-    data class NotionConfig(
-        val workspaceId: String,
-        val databaseId: String? = null,
-        val apiKey: String? = null,
-
-        // Sync settings
-        val syncMode: SyncMode = SyncMode.BIDIRECTIONAL,
-        val conflictStrategy: ConflictStrategy = ConflictStrategy.LAST_WRITE_WINS,
-        val autoSyncIntervalMinutes: Int = 30,
-
-        // Notion-specific settings
-        val defaultPageIcon: String? = "📝",
-        val mapTagsToMultiSelect: Boolean = true
-    ) : ProviderConfig()
-
-    /**
-     * Configuration for Capacities provider.
-     * Integration with Capacities workspace.
-     */
-    data class CapacitiesConfig(
-        val workspaceId: String,
-        val apiKey: String? = null,
-        val spaceId: String? = null,
-
-        // Sync settings
-        val syncMode: SyncMode = SyncMode.BIDIRECTIONAL,
-        val conflictStrategy: ConflictStrategy = ConflictStrategy.LAST_WRITE_WINS,
-        val autoSyncIntervalMinutes: Int = 30
-    ) : ProviderConfig()
-
-    /**
-     * Configuration for custom providers (future extensibility).
-     */
-    data class CustomConfig(
-        val config: Map<String, String>,
-        val syncMode: SyncMode = SyncMode.BIDIRECTIONAL,
-        val conflictStrategy: ConflictStrategy = ConflictStrategy.LAST_WRITE_WINS
-    ) : ProviderConfig()
 }
 
 /**

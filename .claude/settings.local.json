@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "mcp__sequential-thinking__sequentialthinking"
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(gradle build:*)",
+      "Bash(./gradlew test:*)",
+      "Bash(./gradlew testDebugUnitTest:*)",
+      "Bash(./gradlew build:*)"
     ],
     "deny": [],
     "ask": []

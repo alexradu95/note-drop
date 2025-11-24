@@ -268,7 +268,7 @@ class ObsidianProviderTest {
 
         val file = testVaultDir.listFiles()?.first()
         // Filename should be a timestamp format
-        assertThat(file?.name).matches(Regex("\\d{4}-\\d{2}-\\d{2}-\\d{6}\\.md"))
+        assertThat(file?.name).containsMatch("\\d{4}-\\d{2}-\\d{2}-\\d{6}\\.md")
     }
 
     @Test
@@ -375,6 +375,6 @@ class ObsidianProviderTest {
 
         assertThat(path).startsWith("daily-notes/")
         assertThat(path).endsWith(".md")
-        assertThat(path).matches(Regex("daily-notes/\\d{4}-\\d{2}-\\d{2}\\.md"))
+        assertThat(path).containsMatch("daily-notes/\\d{4}-\\d{2}-\\d{2}\\.md")
     }
 }

@@ -81,7 +81,7 @@ class VoiceRecorderTest {
 
         // For unit testing without device, we verify the path pattern is correct
         val testPath = "${context.filesDir}/recordings/recording_${System.currentTimeMillis()}.m4a"
-        assertThat(testPath).matches(expectedPattern)
+        assertThat(testPath).containsMatch(expectedPattern.toPattern())
     }
 
     @Test

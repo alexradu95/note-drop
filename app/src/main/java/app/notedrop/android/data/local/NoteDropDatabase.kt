@@ -31,7 +31,7 @@ import app.notedrop.android.data.local.entity.VaultEntity
         TemplateEntity::class,
         SyncStateEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -79,6 +79,18 @@ abstract class NoteDropDatabase : RoomDatabase() {
                 database.execSQL("""
                     CREATE INDEX IF NOT EXISTS index_sync_states_vaultId_status
                     ON sync_states(vaultId, status)
+                """.trimIndent())
+            }
+        }
+
+        /**
+         * Migration from version 2 to 3: Add filePath column to notes table
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add filePath column to notes table
+                database.execSQL("""
+                    ALTER TABLE notes ADD COLUMN filePath TEXT
                 """.trimIndent())
             }
         }

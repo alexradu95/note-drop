@@ -18,8 +18,11 @@ import app.notedrop.android.domain.model.ObsidianVaultConfig
 @Composable
 fun VaultConfigurationScreen(
     vaultConfig: ObsidianVaultConfig,
+    vault: app.notedrop.android.domain.model.Vault,
+    isDefault: Boolean,
     onNavigateBack: () -> Unit,
-    onSaveConfig: (ObsidianVaultConfig) -> Unit
+    onSaveConfig: (ObsidianVaultConfig) -> Unit,
+    onSetDefault: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -48,6 +51,52 @@ fun VaultConfigurationScreen(
             // Vault Info
             item {
                 VaultInfoSection(vaultConfig)
+            }
+
+            // Set as Default button
+            if (!isDefault) {
+                item {
+                    Button(
+                        onClick = onSetDefault,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Set as Default Vault")
+                    }
+                }
+            } else {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = "This is your default vault",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
             }
 
             // Daily Notes Configuration

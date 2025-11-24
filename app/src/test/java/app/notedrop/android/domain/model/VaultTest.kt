@@ -123,38 +123,9 @@ class VaultTest {
     }
 
     @Test
-    fun `notion config with workspace`() {
-        val config = ProviderConfig.NotionConfig(
-            workspaceId = "workspace-123",
-            databaseId = "database-456",
-            apiKey = "secret-key"
-        )
-
-        assertThat(config.workspaceId).isEqualTo("workspace-123")
-        assertThat(config.databaseId).isEqualTo("database-456")
-        assertThat(config.apiKey).isEqualTo("secret-key")
-    }
-
-    @Test
-    fun `custom config with map`() {
-        val config = ProviderConfig.CustomConfig(
-            config = mapOf(
-                "key1" to "value1",
-                "key2" to "value2"
-            )
-        )
-
-        assertThat(config.config).hasSize(2)
-        assertThat(config.config).containsEntry("key1", "value1")
-        assertThat(config.config).containsEntry("key2", "value2")
-    }
-
-    @Test
     fun `provider type enum values`() {
         assertThat(ProviderType.LOCAL).isNotNull()
         assertThat(ProviderType.OBSIDIAN).isNotNull()
-        assertThat(ProviderType.NOTION).isNotNull()
-        assertThat(ProviderType.CUSTOM).isNotNull()
     }
 
     @Test
@@ -188,14 +159,6 @@ class VaultTest {
             providerConfig = ProviderConfig.LocalConfig("/local")
         )
 
-        val vault3 = Vault(
-            name = "Notion Vault",
-            providerType = ProviderType.NOTION,
-            providerConfig = ProviderConfig.NotionConfig("workspace")
-        )
-
         assertThat(vault1.providerType).isNotEqualTo(vault2.providerType)
-        assertThat(vault2.providerType).isNotEqualTo(vault3.providerType)
-        assertThat(vault1.providerType).isNotEqualTo(vault3.providerType)
     }
 }

@@ -34,18 +34,27 @@ class VaultRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getDefaultVault(): Vault? {
-        return vaultDao.getDefaultVault()?.toDomain()
+        val entity = vaultDao.getDefaultVault()
+        android.util.Log.d("VaultRepositoryImpl", "getDefaultVault: entity=${entity?.id}, isDefault=${entity?.isDefault}")
+        return entity?.toDomain()
     }
 
     override fun getDefaultVaultFlow(): Flow<Vault?> {
-        return vaultDao.getDefaultVaultFlow().map { it?.toDomain() }
+        return vaultDao.getDefaultVaultFlow().map {
+            android.util.Log.d("VaultRepositoryImpl", "getDefaultVaultFlow - emitting entity: ${it?.id}, isDefault=${it?.isDefault}")
+            it?.toDomain()
+        }
     }
 
     override suspend fun createVault(vault: Vault): Result<Vault> {
         return try {
-            vaultDao.insertVault(vault.toEntity())
+            val entity = vault.toEntity()
+            android.util.Log.d("VaultRepositoryImpl", "Inserting vault entity: id=${entity.id}, name=${entity.name}, isDefault=${entity.isDefault}, providerConfig=${entity.providerConfig}")
+            vaultDao.insertVault(entity)
+            android.util.Log.d("VaultRepositoryImpl", "Vault inserted successfully")
             Result.success(vault)
         } catch (e: Exception) {
+            android.util.Log.e("VaultRepositoryImpl", "Error creating vault", e)
             Result.failure(e)
         }
     }
@@ -70,9 +79,17 @@ class VaultRepositoryImpl @Inject constructor(
 
     override suspend fun setDefaultVault(id: String): Result<Unit> {
         return try {
+            android.util.Log.d("VaultRepositoryImpl", "Setting default vault: $id")
             vaultDao.setDefaultVault(id)
+            android.util.Log.d("VaultRepositoryImpl", "Default vault set successfully")
+
+            // Verify the change
+            val defaultVault = vaultDao.getDefaultVault()
+            android.util.Log.d("VaultRepositoryImpl", "Current default vault after update: ${defaultVault?.id}, isDefault=${defaultVault?.isDefault}")
+
             Result.success(Unit)
         } catch (e: Exception) {
+            android.util.Log.e("VaultRepositoryImpl", "Error setting default vault", e)
             Result.failure(e)
         }
     }

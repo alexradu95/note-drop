@@ -22,7 +22,8 @@ data class NoteEntity(
     val voiceRecordingPath: String?,
     val transcriptionStatus: String,
     val metadata: String, // Stored as JSON string
-    val isSynced: Boolean
+    val isSynced: Boolean,
+    val filePath: String? // Path to the markdown file in the vault
 )
 
 /**
@@ -40,7 +41,8 @@ fun Note.toEntity(): NoteEntity {
         voiceRecordingPath = voiceRecordingPath,
         transcriptionStatus = transcriptionStatus.name,
         metadata = metadataToJson(metadata),
-        isSynced = isSynced
+        isSynced = isSynced,
+        filePath = filePath
     )
 }
 
@@ -59,7 +61,8 @@ fun NoteEntity.toDomain(): Note {
         voiceRecordingPath = voiceRecordingPath,
         transcriptionStatus = TranscriptionStatus.valueOf(transcriptionStatus),
         metadata = jsonToMetadata(metadata),
-        isSynced = isSynced
+        isSynced = isSynced,
+        filePath = filePath
     )
 }
 

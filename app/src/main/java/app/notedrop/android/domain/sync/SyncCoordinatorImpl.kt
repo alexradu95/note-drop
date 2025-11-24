@@ -474,10 +474,7 @@ class SyncCoordinatorImpl @Inject constructor(
     private fun getSyncMode(config: ProviderConfig): SyncMode {
         return when (config) {
             is ProviderConfig.ObsidianConfig -> config.syncMode
-            is ProviderConfig.NotionConfig -> config.syncMode
-            is ProviderConfig.CapacitiesConfig -> config.syncMode
-            is ProviderConfig.CustomConfig -> config.syncMode
-            else -> SyncMode.BIDIRECTIONAL
+            is ProviderConfig.LocalConfig -> SyncMode.DISABLED
         }
     }
 
@@ -487,10 +484,7 @@ class SyncCoordinatorImpl @Inject constructor(
     private fun getConflictStrategy(config: ProviderConfig): ConflictStrategy {
         return when (config) {
             is ProviderConfig.ObsidianConfig -> config.conflictStrategy
-            is ProviderConfig.NotionConfig -> config.conflictStrategy
-            is ProviderConfig.CapacitiesConfig -> config.conflictStrategy
-            is ProviderConfig.CustomConfig -> config.conflictStrategy
-            else -> ConflictStrategy.LAST_WRITE_WINS
+            is ProviderConfig.LocalConfig -> ConflictStrategy.LAST_WRITE_WINS
         }
     }
 }

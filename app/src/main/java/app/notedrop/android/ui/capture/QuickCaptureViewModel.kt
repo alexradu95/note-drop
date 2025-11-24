@@ -2,7 +2,6 @@ package app.notedrop.android.ui.capture
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.notedrop.android.data.provider.NoteProvider
 import app.notedrop.android.data.voice.RecordingState
 import app.notedrop.android.data.voice.VoiceRecorder
 import app.notedrop.android.domain.model.Note
@@ -11,6 +10,7 @@ import app.notedrop.android.domain.model.TranscriptionStatus
 import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.TemplateRepository
 import app.notedrop.android.domain.repository.VaultRepository
+import app.notedrop.android.domain.sync.ProviderFactory
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,7 +33,7 @@ class QuickCaptureViewModel @Inject constructor(
     private val vaultRepository: VaultRepository,
     private val templateRepository: TemplateRepository,
     private val voiceRecorder: VoiceRecorder,
-    private val noteProvider: NoteProvider
+    private val providerFactory: ProviderFactory
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuickCaptureUiState())
@@ -61,6 +61,13 @@ class QuickCaptureViewModel @Inject constructor(
         )
 
     init {
+        // Log default vault changes
+        viewModelScope.launch {
+            defaultVault.collect { vault ->
+                android.util.Log.d("QuickCaptureViewModel", "init - defaultVault changed: id=${vault?.id}, name=${vault?.name}")
+            }
+        }
+
         // Initialize built-in templates
         viewModelScope.launch {
             templateRepository.initializeBuiltInTemplates()
@@ -129,10 +136,11 @@ class QuickCaptureViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSaving = true)
 
             val vault = defaultVault.value
+            android.util.Log.d("QuickCaptureViewModel", "saveNote - defaultVault: $vault")
             if (vault == null) {
                 _uiState.value = _uiState.value.copy(
                     isSaving = false,
-                    error = "No default vault configured"
+                    error = "No default vault configured. Please go to Settings and connect a vault first."
                 )
                 return@launch
             }
@@ -154,9 +162,31 @@ class QuickCaptureViewModel @Inject constructor(
             val result = noteRepository.createNote(note)
 
             result.onSuccess { savedNote ->
+                android.util.Log.d("QuickCaptureViewModel", "Note saved to database: ${savedNote.id}")
+
                 // Sync to provider if configured
-                if (noteProvider.isAvailable(vault)) {
-                    noteProvider.saveNote(savedNote, vault)
+                val noteProvider = providerFactory.getProvider(vault.providerType)
+                android.util.Log.d("QuickCaptureViewModel", "Got provider: ${noteProvider.javaClass.simpleName}")
+
+                val isAvailable = noteProvider.isAvailable(vault)
+                android.util.Log.d("QuickCaptureViewModel", "Provider available: $isAvailable")
+
+                if (isAvailable) {
+                    android.util.Log.d("QuickCaptureViewModel", "Calling provider.saveNote()")
+                    val providerResult = noteProvider.saveNote(savedNote, vault)
+                    providerResult.onSuccess { filePath ->
+                        android.util.Log.d("QuickCaptureViewModel", "Provider save success: $filePath")
+                        // Update the note with the file path
+                        val updatedNote = savedNote.copy(
+                            filePath = filePath,
+                            isSynced = true
+                        )
+                        noteRepository.updateNote(updatedNote)
+                    }.onFailure { providerError ->
+                        android.util.Log.e("QuickCaptureViewModel", "Failed to save to provider", providerError)
+                    }
+                } else {
+                    android.util.Log.w("QuickCaptureViewModel", "Provider not available, skipping sync")
                 }
 
                 _uiState.value = QuickCaptureUiState(

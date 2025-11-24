@@ -64,15 +64,6 @@ class SettingsViewModel @Inject constructor(
                     vaultPath = vaultPath,
                     useFrontMatter = true
                 )
-                ProviderType.NOTION -> ProviderConfig.NotionConfig(
-                    workspaceId = vaultPath
-                )
-                ProviderType.CAPACITIES -> ProviderConfig.CapacitiesConfig(
-                    workspaceId = vaultPath
-                )
-                ProviderType.CUSTOM -> ProviderConfig.CustomConfig(
-                    config = emptyMap()
-                )
             }
 
             val vault = Vault(
@@ -83,10 +74,33 @@ class SettingsViewModel @Inject constructor(
                 isDefault = setAsDefault
             )
 
+            android.util.Log.d("SettingsViewModel", "Creating vault: name=$name, providerType=$providerType, vaultPath=$vaultPath, setAsDefault=$setAsDefault")
+
             val result = vaultRepository.createVault(vault)
 
             result.onSuccess {
+                android.util.Log.d("SettingsViewModel", "Vault created successfully: ${vault.id}, isDefault in object=${vault.isDefault}")
+
+                // For Obsidian vaults, parse and update config with daily notes settings
+                if (providerType == ProviderType.OBSIDIAN) {
+                    try {
+                        val parsedConfig = obsidianConfigParser.parseVaultConfig(android.net.Uri.parse(vaultPath))
+                        if (parsedConfig?.dailyNotes != null) {
+                            val updatedProviderConfig = (vault.providerConfig as ProviderConfig.ObsidianConfig).copy(
+                                dailyNotesPath = parsedConfig.dailyNotes.folder,
+                                dailyNotesFormat = parsedConfig.dailyNotes.format
+                            )
+                            val updatedVault = vault.copy(providerConfig = updatedProviderConfig)
+                            vaultRepository.updateVault(updatedVault)
+                            android.util.Log.d("SettingsViewModel", "Updated vault with daily notes config: folder=${parsedConfig.dailyNotes.folder}, format=${parsedConfig.dailyNotes.format}")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("SettingsViewModel", "Failed to parse vault config", e)
+                    }
+                }
+
                 if (setAsDefault) {
+                    android.util.Log.d("SettingsViewModel", "Setting vault ${vault.id} as default")
                     vaultRepository.setDefaultVault(vault.id)
                 }
                 _uiState.value = SettingsUiState(
@@ -104,7 +118,9 @@ class SettingsViewModel @Inject constructor(
 
     fun setDefaultVault(vaultId: String) {
         viewModelScope.launch {
+            android.util.Log.d("SettingsViewModel", "setDefaultVault called for: $vaultId")
             vaultRepository.setDefaultVault(vaultId)
+            android.util.Log.d("SettingsViewModel", "setDefaultVault completed for: $vaultId")
         }
     }
 
@@ -138,26 +154,43 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Load Obsidian vault configuration from the vault URI
+     * Load Obsidian vault configuration from the vault
      */
-    fun loadVaultConfig(vaultUri: Uri) {
+    fun loadVaultConfig(vault: Vault) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingConfig = true)
 
-            val config = obsidianConfigParser.parseVaultConfig(vaultUri)
-
-            _uiState.value = _uiState.value.copy(
-                isLoadingConfig = false,
-                vaultConfig = config,
-                showConfigScreen = config != null
-            )
+            val providerConfig = vault.providerConfig as? ProviderConfig.ObsidianConfig
+            if (providerConfig != null && providerConfig.vaultPath.isNotBlank()) {
+                try {
+                    val config = obsidianConfigParser.parseVaultConfig(Uri.parse(providerConfig.vaultPath))
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingConfig = false,
+                        vaultConfig = config,
+                        currentVault = vault,
+                        showConfigScreen = config != null
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("SettingsViewModel", "Error loading vault config", e)
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingConfig = false,
+                        error = "Failed to load vault configuration"
+                    )
+                }
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    isLoadingConfig = false,
+                    error = "Invalid vault path"
+                )
+            }
         }
     }
 
     fun dismissConfigScreen() {
         _uiState.value = _uiState.value.copy(
             showConfigScreen = false,
-            vaultConfig = null
+            vaultConfig = null,
+            currentVault = null
         )
     }
 }
@@ -172,5 +205,6 @@ data class SettingsUiState(
     val vaultCreated: Boolean = false,
     val showConfigScreen: Boolean = false,
     val vaultConfig: ObsidianVaultConfig? = null,
+    val currentVault: Vault? = null,
     val error: String? = null
 )

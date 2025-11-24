@@ -23,9 +23,9 @@ interface NoteProvider {
      * Save a note to the provider's storage.
      * @param note The note to save
      * @param vault The vault configuration
-     * @return Success or failure result
+     * @return Success with the file path where the note was saved, or failure result
      */
-    suspend fun saveNote(note: Note, vault: Vault): Result<Unit>
+    suspend fun saveNote(note: Note, vault: Vault): Result<String>
 
     /**
      * Load a note from the provider's storage by ID.

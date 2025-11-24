@@ -28,6 +28,10 @@ class FakeNoteRepository : NoteRepository {
         return notes.map { it.filter { note -> note.vaultId == vaultId } }
     }
 
+    override suspend fun getNotesForVault(vaultId: String): List<Note> {
+        return notes.value.filter { it.vaultId == vaultId }
+    }
+
     override suspend fun getNoteById(id: String): Note? {
         return notes.value.find { it.id == id }
     }
@@ -281,7 +285,8 @@ class FakeVoiceRecorder {
     }
 
     fun pauseRecording(): Result<Unit> {
-        _recordingState.value = RecordingState.Paused
+        val path = recordingFilePath ?: return Result.failure(Exception("No recording to pause"))
+        _recordingState.value = RecordingState.Paused(path)
         return Result.success(Unit)
     }
 
@@ -304,27 +309,61 @@ class FakeVoiceRecorder {
  */
 class FakeNoteProvider : NoteProvider {
     private val savedNotes = mutableMapOf<String, Note>()
+    private val remoteNotes = mutableMapOf<String, Note>()
     var shouldFail = false
     var isAvailableResult = true
 
-    override suspend fun saveNote(note: Note, vault: Vault): Result<Unit> {
+    override suspend fun saveNote(note: Note, vault: Vault): Result<String> {
         return if (shouldFail) {
             Result.failure(Exception("Save failed"))
         } else {
             savedNotes[note.id] = note
-            Result.success(Unit)
+            Result.success("${note.id}.md")
         }
     }
 
     override suspend fun loadNote(noteId: String, vault: Vault): Result<Note> {
-        return savedNotes[noteId]?.let {
+        return (remoteNotes[noteId] ?: savedNotes[noteId])?.let {
             Result.success(it)
         } ?: Result.failure(Exception("Note not found"))
     }
 
     override suspend fun deleteNote(noteId: String, vault: Vault): Result<Unit> {
         savedNotes.remove(noteId)
+        remoteNotes.remove(noteId)
         return Result.success(Unit)
+    }
+
+    override suspend fun listNotes(vault: Vault): Result<List<app.notedrop.android.domain.model.NoteMetadata>> {
+        return if (shouldFail) {
+            Result.failure(Exception("List notes failed"))
+        } else {
+            val metadata = remoteNotes.values.map { note ->
+                app.notedrop.android.domain.model.NoteMetadata(
+                    id = note.id,
+                    title = note.title,
+                    path = "${note.id}.md",
+                    modifiedAt = note.updatedAt,
+                    size = note.content.length.toLong(),
+                    tags = note.tags
+                )
+            }
+            Result.success(metadata)
+        }
+    }
+
+    override suspend fun getMetadata(noteId: String, vault: Vault): Result<app.notedrop.android.domain.model.FileMetadata> {
+        val note = remoteNotes[noteId] ?: savedNotes[noteId]
+            ?: return Result.failure(Exception("Note not found"))
+
+        return Result.success(
+            app.notedrop.android.domain.model.FileMetadata(
+                path = "${note.id}.md",
+                absolutePath = "/test/${note.id}.md",
+                modifiedAt = note.updatedAt,
+                size = note.content.length.toLong()
+            )
+        )
     }
 
     override suspend fun isAvailable(vault: Vault): Boolean {
@@ -343,8 +382,15 @@ class FakeNoteProvider : NoteProvider {
     // Test helpers
     fun getSavedNotes(): List<Note> = savedNotes.values.toList()
 
+    fun addRemoteNote(note: Note) {
+        remoteNotes[note.id] = note
+    }
+
+    fun getRemoteNotes(): List<Note> = remoteNotes.values.toList()
+
     fun clear() {
         savedNotes.clear()
+        remoteNotes.clear()
         shouldFail = false
         isAvailableResult = true
     }

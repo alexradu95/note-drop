@@ -77,17 +77,24 @@ fun SettingsScreen(
                 }
             } else {
                 items(vaults) { vault ->
+                    val isDefault = vault.id == defaultVault?.id
+                    android.util.Log.d("SettingsScreen", "Rendering vault: id=${vault.id}, name=${vault.name}, isDefault=$isDefault, defaultVaultId=${defaultVault?.id}")
                     VaultCard(
                         vault = vault,
-                        isDefault = vault.id == defaultVault?.id,
-                        onSetDefault = { viewModel.setDefaultVault(vault.id) },
+                        isDefault = isDefault,
+                        onSetDefault = {
+                            android.util.Log.d("SettingsScreen", "VaultCard - Set as Default clicked for vault: ${vault.id}")
+                            viewModel.setDefaultVault(vault.id)
+                        },
                         onDelete = { viewModel.deleteVault(vault.id) },
                         onViewConfig = {
-                            // Load config for this vault
-                            val vaultConfig = vault.providerConfig as? ProviderConfig.ObsidianConfig
-                            vaultConfig?.let {
-                                viewModel.loadVaultConfig(Uri.parse(it.vaultPath))
-                            }
+                            android.util.Log.d("SettingsScreen", "VaultCard - Configure clicked for vault: ${vault.id}")
+                            viewModel.loadVaultConfig(vault)
+                        },
+                        hasValidConfig = when (val config = vault.providerConfig) {
+                            is ProviderConfig.ObsidianConfig ->
+                                config.vaultPath.isNotBlank() && config.vaultPath.startsWith("content://")
+                            else -> false
                         }
                     )
                 }
@@ -117,18 +124,21 @@ fun SettingsScreen(
             },
             onCreate = { name, description, providerType, vaultPath, setAsDefault ->
                 viewModel.createVault(name, description, providerType, vaultPath, setAsDefault)
-                if (uiState.vaultCreated) {
-                    showCreateVaultDialog = false
-                    // Load vault config after creation
-                    viewModel.loadVaultConfig(Uri.parse(vaultPath))
-                }
             }
         )
     }
 
+    // Close dialog when vault is created
+    LaunchedEffect(uiState.vaultCreated) {
+        if (uiState.vaultCreated) {
+            showCreateVaultDialog = false
+        }
+    }
+
     // Vault configuration dialog
     val vaultConfig = uiState.vaultConfig
-    if (uiState.showConfigScreen && vaultConfig != null) {
+    val currentVault = uiState.currentVault
+    if (uiState.showConfigScreen && vaultConfig != null && currentVault != null) {
         androidx.compose.ui.window.Dialog(
             onDismissRequest = { viewModel.dismissConfigScreen() },
             properties = androidx.compose.ui.window.DialogProperties(
@@ -139,12 +149,18 @@ fun SettingsScreen(
         ) {
             VaultConfigurationScreen(
                 vaultConfig = vaultConfig,
+                vault = currentVault,
+                isDefault = currentVault.id == defaultVault?.id,
                 onNavigateBack = {
                     viewModel.dismissConfigScreen()
                 },
                 onSaveConfig = { config ->
                     // TODO: Save updated config
                     viewModel.dismissConfigScreen()
+                },
+                onSetDefault = {
+                    android.util.Log.d("SettingsScreen", "VaultConfigurationScreen - Set as Default clicked for vault: ${currentVault.id}")
+                    viewModel.setDefaultVault(currentVault.id)
                 }
             )
         }
@@ -166,14 +182,21 @@ private fun VaultCard(
     isDefault: Boolean,
     onSetDefault: () -> Unit,
     onDelete: () -> Unit,
-    onViewConfig: () -> Unit
+    onViewConfig: () -> Unit,
+    hasValidConfig: Boolean = true
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onViewConfig)
+            .then(
+                if (hasValidConfig) {
+                    Modifier.clickable(onClick = onViewConfig)
+                } else {
+                    Modifier
+                }
+            )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -246,17 +269,33 @@ private fun VaultCard(
                         Text("Set as Default")
                     }
                 }
-                OutlinedButton(
-                    onClick = onViewConfig,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        Icons.Default.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Configure")
+                if (hasValidConfig) {
+                    OutlinedButton(
+                        onClick = onViewConfig,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Configure")
+                    }
+                } else {
+                    // Show info that vault needs to be reconnected
+                    OutlinedButton(
+                        onClick = { /* TODO: Show reconnect dialog */ },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Reconnect")
+                    }
                 }
             }
         }

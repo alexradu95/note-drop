@@ -29,7 +29,8 @@ data class Note(
     val voiceRecordingPath: String? = null,
     val transcriptionStatus: TranscriptionStatus = TranscriptionStatus.NONE,
     val metadata: Map<String, String> = emptyMap(),
-    val isSynced: Boolean = false
+    val isSynced: Boolean = false,
+    val filePath: String? = null  // Path to the markdown file in the vault
 )
 
 /**

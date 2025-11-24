@@ -1,7 +1,11 @@
 package app.notedrop.android.ui.capture
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import app.notedrop.android.data.voice.RecordingState
+import app.notedrop.android.data.voice.VoiceRecorder
 import app.notedrop.android.domain.model.Template
+import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.util.*
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
@@ -24,8 +28,9 @@ class QuickCaptureViewModelTest {
     private lateinit var noteRepository: FakeNoteRepository
     private lateinit var vaultRepository: FakeVaultRepository
     private lateinit var templateRepository: FakeTemplateRepository
-    private lateinit var voiceRecorder: FakeVoiceRecorder
+    private lateinit var voiceRecorder: VoiceRecorder
     private lateinit var noteProvider: FakeNoteProvider
+    private lateinit var providerFactory: ProviderFactory
     private lateinit var viewModel: QuickCaptureViewModel
 
     @Before
@@ -33,8 +38,10 @@ class QuickCaptureViewModelTest {
         noteRepository = FakeNoteRepository()
         vaultRepository = FakeVaultRepository()
         templateRepository = FakeTemplateRepository()
-        voiceRecorder = FakeVoiceRecorder()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        voiceRecorder = VoiceRecorder(context)
         noteProvider = FakeNoteProvider()
+        providerFactory = ProviderFactory(noteProvider, noteProvider)
 
         // Create a default vault for testing
         val vault = TestFixtures.createVault(isDefault = true)
@@ -45,7 +52,7 @@ class QuickCaptureViewModelTest {
             vaultRepository,
             templateRepository,
             voiceRecorder,
-            noteProvider
+            providerFactory
         )
     }
 

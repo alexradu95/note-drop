@@ -1,9 +1,11 @@
 package app.notedrop.android.ui.settings
 
+import app.notedrop.android.data.parser.ObsidianConfigParser
 import app.notedrop.android.domain.model.ProviderType
 import app.notedrop.android.util.*
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -22,13 +24,15 @@ class SettingsViewModelTest {
 
     private lateinit var vaultRepository: FakeVaultRepository
     private lateinit var noteRepository: FakeNoteRepository
+    private lateinit var obsidianConfigParser: ObsidianConfigParser
     private lateinit var viewModel: SettingsViewModel
 
     @Before
     fun setup() {
         vaultRepository = FakeVaultRepository()
         noteRepository = FakeNoteRepository()
-        viewModel = SettingsViewModel(vaultRepository, noteRepository)
+        obsidianConfigParser = mockk(relaxed = true)
+        viewModel = SettingsViewModel(vaultRepository, noteRepository, obsidianConfigParser)
     }
 
     @Test
@@ -92,23 +96,6 @@ class SettingsViewModelTest {
         viewModel.vaults.test {
             val vaults = awaitItem()
             assertThat(vaults.first().providerType).isEqualTo(ProviderType.LOCAL)
-        }
-    }
-
-    @Test
-    fun `createVault creates Notion vault`() = runTest {
-        viewModel.createVault(
-            name = "Notion Vault",
-            description = "Notion workspace",
-            providerType = ProviderType.NOTION,
-            vaultPath = "workspace-id",
-            setAsDefault = false
-        )
-        advanceUntilIdle()
-
-        viewModel.vaults.test {
-            val vaults = awaitItem()
-            assertThat(vaults.first().providerType).isEqualTo(ProviderType.NOTION)
         }
     }
 

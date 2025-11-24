@@ -24,9 +24,6 @@ class ProviderFactory @Inject constructor(
         return when (type) {
             ProviderType.OBSIDIAN -> obsidianProvider
             ProviderType.LOCAL -> localProvider
-            ProviderType.NOTION -> throw NotImplementedError("Notion provider not yet implemented")
-            ProviderType.CAPACITIES -> throw NotImplementedError("Capacities provider not yet implemented")
-            ProviderType.CUSTOM -> throw NotImplementedError("Custom provider not yet implemented")
         }
     }
 }
