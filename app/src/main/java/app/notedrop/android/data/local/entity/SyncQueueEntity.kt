@@ -1,6 +1,7 @@
 package app.notedrop.android.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import app.notedrop.android.domain.model.SyncQueueItem
 import java.time.Instant
@@ -14,7 +15,14 @@ import java.time.Instant
  * - Stores failure reason for debugging
  * - Tracks when next retry should be attempted
  */
-@Entity(tableName = "sync_queue")
+@Entity(
+    tableName = "sync_queue",
+    indices = [
+        Index(value = ["vaultId"]),
+        Index(value = ["nextRetryAt"]),
+        Index(value = ["retryCount"])
+    ]
+)
 data class SyncQueueEntity(
     @PrimaryKey
     val noteId: String,

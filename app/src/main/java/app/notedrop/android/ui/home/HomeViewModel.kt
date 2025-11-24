@@ -46,6 +46,14 @@ class HomeViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    // Default vault
+    val defaultVault = vaultRepository.getDefaultVaultFlow()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
     // All notes from the repository (filtered by selected vault)
     private val allNotes = combine(
         _selectedVault,
@@ -71,14 +79,6 @@ class HomeViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
-        )
-
-    // Default vault
-    val defaultVault = vaultRepository.getDefaultVaultFlow()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = null
         )
 
     // Sync states for all notes (noteId -> SyncState)

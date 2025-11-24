@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 4,
-    "identityHash": "93b905a5a9e8e04f03ffc45e8d2bbdcb",
+    "identityHash": "c6f1f0a641d2b97eb2668a6cefa985f7",
     "entities": [
       {
         "tableName": "notes",
@@ -341,14 +341,42 @@
             "noteId"
           ]
         },
-        "indices": [],
+        "indices": [
+          {
+            "name": "index_sync_queue_vaultId",
+            "unique": false,
+            "columnNames": [
+              "vaultId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_queue_vaultId` ON `${TABLE_NAME}` (`vaultId`)"
+          },
+          {
+            "name": "index_sync_queue_nextRetryAt",
+            "unique": false,
+            "columnNames": [
+              "nextRetryAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_queue_nextRetryAt` ON `${TABLE_NAME}` (`nextRetryAt`)"
+          },
+          {
+            "name": "index_sync_queue_retryCount",
+            "unique": false,
+            "columnNames": [
+              "retryCount"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_queue_retryCount` ON `${TABLE_NAME}` (`retryCount`)"
+          }
+        ],
         "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '93b905a5a9e8e04f03ffc45e8d2bbdcb')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c6f1f0a641d2b97eb2668a6cefa985f7')"
     ]
   }
 }

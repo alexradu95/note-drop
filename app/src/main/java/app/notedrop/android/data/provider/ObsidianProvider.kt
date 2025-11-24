@@ -441,9 +441,9 @@ class ObsidianProvider @Inject constructor(
             "W" to weekOfYear.toString()
         )
 
-        // Apply replacements
+        // Apply replacements - ONLY outside of literal markers
         for ((token, value) in tokens) {
-            result = result.replace(token, value)
+            result = replaceTokenOutsideLiterals(result, token, value)
         }
 
         // Restore literal text (remove placeholders)
@@ -466,6 +466,43 @@ class ObsidianProvider @Inject constructor(
         }
 
         return Pair(folderPath, filename)
+    }
+
+    /**
+     * Replace a token with its value, but only outside of literal text markers (\u0000...\u0000).
+     * This prevents tokens inside literal brackets from being replaced.
+     *
+     * Example:
+     * - Input: "\u0000Week-\u0000WW" with token="W", value="48"
+     * - Output: "\u0000Week-\u000048" (only the second W is replaced)
+     */
+    private fun replaceTokenOutsideLiterals(text: String, token: String, value: String): String {
+        val result = StringBuilder()
+        var i = 0
+        var insideLiteral = false
+
+        while (i < text.length) {
+            when {
+                // Toggle literal marker
+                text[i] == '\u0000' -> {
+                    insideLiteral = !insideLiteral
+                    result.append(text[i])
+                    i++
+                }
+                // Found token outside literal - replace it
+                !insideLiteral && text.startsWith(token, i) -> {
+                    result.append(value)
+                    i += token.length
+                }
+                // Regular character or token inside literal - keep as-is
+                else -> {
+                    result.append(text[i])
+                    i++
+                }
+            }
+        }
+
+        return result.toString()
     }
 
     /**

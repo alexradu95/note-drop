@@ -35,12 +35,7 @@ object DatabaseModule {
             NoteDropDatabase::class.java,
             NoteDropDatabase.DATABASE_NAME
         )
-            .addMigrations(
-                NoteDropDatabase.MIGRATION_1_2,
-                NoteDropDatabase.MIGRATION_2_3,
-                NoteDropDatabase.MIGRATION_3_4
-            )
-            .fallbackToDestructiveMigration() // For development - remove in production
+            .fallbackToDestructiveMigration() // Rebuild database from scratch during development
             .build()
     }
 

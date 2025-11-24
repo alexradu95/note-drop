@@ -12,6 +12,7 @@ import app.notedrop.android.domain.repository.SyncStateRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.flow.first
 
 /**
  * Background worker for periodic note synchronization.
@@ -41,7 +42,7 @@ class SyncWorker @AssistedInject constructor(
 
         return try {
             // Get all vaults
-            val vaults = vaultRepository.getAllVaults()
+            val vaults = vaultRepository.getAllVaults().first()
 
             if (vaults.isEmpty()) {
                 Log.d(TAG, "No vaults configured, skipping sync")
