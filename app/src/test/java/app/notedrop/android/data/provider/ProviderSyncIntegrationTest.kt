@@ -9,6 +9,7 @@ import app.notedrop.android.domain.model.Vault
 import app.notedrop.android.domain.sync.ProviderFactory
 import com.google.common.truth.Truth.assertThat
 import io.mockk.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -311,10 +312,10 @@ class ProviderSyncIntegrationTest {
         // When: Request same provider from multiple coroutines
         val results = mutableListOf<NoteProvider>()
 
-        val job1 = kotlinx.coroutines.launch {
+        val job1 = launch {
             results.add(providerFactory.getProvider(ProviderType.OBSIDIAN))
         }
-        val job2 = kotlinx.coroutines.launch {
+        val job2 = launch {
             results.add(providerFactory.getProvider(ProviderType.OBSIDIAN))
         }
 

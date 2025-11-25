@@ -150,12 +150,15 @@ class VaultRepositoryImplTest {
     @Test
     fun `setDefaultVault sets vault as default`() = runTest {
         val vaultId = "vault-1"
+        val vault = TestFixtures.createVault(id = vaultId, isDefault = true)
         coEvery { vaultDao.setDefaultVault(vaultId) } just Runs
+        coEvery { vaultDao.getDefaultVault() } returns vault.toEntity()
 
         val result = repository.setDefaultVault(vaultId)
 
         assertThat(result.isSuccess).isTrue()
         coVerify { vaultDao.setDefaultVault(vaultId) }
+        coVerify { vaultDao.getDefaultVault() }
     }
 
     @Test

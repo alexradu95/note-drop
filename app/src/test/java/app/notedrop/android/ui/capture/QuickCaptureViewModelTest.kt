@@ -1,12 +1,12 @@
 package app.notedrop.android.ui.capture
 
-import android.content.Context
-import androidx.test.core.app.ApplicationProvider
 import app.notedrop.android.data.voice.RecordingState
 import app.notedrop.android.data.voice.VoiceRecorder
 import app.notedrop.android.domain.model.Template
 import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.util.*
+import io.mockk.every
+import io.mockk.mockk
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,6 +29,7 @@ class QuickCaptureViewModelTest {
     private lateinit var vaultRepository: FakeVaultRepository
     private lateinit var templateRepository: FakeTemplateRepository
     private lateinit var voiceRecorder: VoiceRecorder
+    private lateinit var fakeVoiceRecorder: FakeVoiceRecorder
     private lateinit var noteProvider: FakeNoteProvider
     private lateinit var providerFactory: ProviderFactory
     private lateinit var viewModel: QuickCaptureViewModel
@@ -38,10 +39,21 @@ class QuickCaptureViewModelTest {
         noteRepository = FakeNoteRepository()
         vaultRepository = FakeVaultRepository()
         templateRepository = FakeTemplateRepository()
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        voiceRecorder = VoiceRecorder(context)
+        fakeVoiceRecorder = FakeVoiceRecorder()
+
+        // Mock VoiceRecorder to use FakeVoiceRecorder's flows
+        voiceRecorder = mockk(relaxed = true)
+        every { voiceRecorder.recordingState } returns fakeVoiceRecorder.recordingState
+        every { voiceRecorder.recordingDuration } returns fakeVoiceRecorder.recordingDuration
+        every { voiceRecorder.startRecording() } answers { fakeVoiceRecorder.startRecording() }
+        every { voiceRecorder.stopRecording() } answers { fakeVoiceRecorder.stopRecording() }
+        every { voiceRecorder.cancelRecording() } answers { fakeVoiceRecorder.cancelRecording() }
+        every { voiceRecorder.pauseRecording() } answers { fakeVoiceRecorder.pauseRecording() }
+        every { voiceRecorder.resumeRecording() } answers { fakeVoiceRecorder.resumeRecording() }
+
         noteProvider = FakeNoteProvider()
-        providerFactory = ProviderFactory(noteProvider, noteProvider)
+        providerFactory = mockk(relaxed = true)
+        every { providerFactory.getProvider(any()) } returns noteProvider
 
         // Create a default vault for testing
         val vault = TestFixtures.createVault(isDefault = true)

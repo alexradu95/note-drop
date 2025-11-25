@@ -1,6 +1,0 @@
-{
-  "folder": "01 Daily Journey",
-  "format": "YYYY/MM-MMMM/[Week-]WW/YYYY-MM-DD",
-  "autorun": false,
-  "template": "06 System/Templates/daily_note_template"
-}

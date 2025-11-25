@@ -19,7 +19,9 @@
       "Bash(del \"C:\\Users\\eu_de\\AndroidStudioProjects\\NoteDrop\\app\\src\\test\\java\\app\\notedrop\\android\\ExampleUnitTest.kt\")",
       "Bash(del \"C:\\Users\\eu_de\\AndroidStudioProjects\\NoteDrop\\app\\src\\androidTest\\java\\app\\notedrop\\android\\ExampleInstrumentedTest.kt\")",
       "Bash(rm:*)",
-      "Bash(gradlew.bat testDebugUnitTest:*)"
+      "Bash(gradlew.bat testDebugUnitTest:*)",
+      "Bash(cat:*)",
+      "Bash(./gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

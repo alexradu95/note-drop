@@ -7,8 +7,11 @@ import app.notedrop.android.domain.model.Note
 import app.notedrop.android.domain.model.Template
 import app.notedrop.android.domain.model.Vault
 import app.notedrop.android.domain.repository.NoteRepository
+import app.notedrop.android.domain.repository.SyncStateRepository
 import app.notedrop.android.domain.repository.TemplateRepository
 import app.notedrop.android.domain.repository.VaultRepository
+import app.notedrop.android.domain.model.SyncState
+import app.notedrop.android.domain.model.SyncStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,6 +68,10 @@ class FakeNoteRepository : NoteRepository {
 
     override suspend fun getUnsyncedNotes(): List<Note> {
         return notes.value.filter { !it.isSynced }
+    }
+
+    override suspend fun getUnsyncedNotes(vaultId: String): List<Note> {
+        return notes.value.filter { !it.isSynced && it.vaultId == vaultId }
     }
 
     override suspend fun createNote(note: Note): Result<Note> {
@@ -393,5 +400,118 @@ class FakeNoteProvider : NoteProvider {
         remoteNotes.clear()
         shouldFail = false
         isAvailableResult = true
+    }
+}
+
+/**
+ * Fake implementation of SyncStateRepository for testing.
+ */
+class FakeSyncStateRepository : SyncStateRepository {
+    private val syncStates = MutableStateFlow<Map<String, SyncState>>(emptyMap())
+
+    override suspend fun getSyncState(noteId: String): SyncState? {
+        return syncStates.value[noteId]
+    }
+
+    override fun observeSyncState(noteId: String): Flow<SyncState?> {
+        return syncStates.map { it[noteId] }
+    }
+
+    override fun getSyncStatesForVault(vaultId: String): Flow<List<SyncState>> {
+        return syncStates.map { states ->
+            states.values.filter { it.vaultId == vaultId }
+        }
+    }
+
+    override suspend fun getByStatus(status: SyncStatus): List<SyncState> {
+        return syncStates.value.values.filter { it.status == status }
+    }
+
+    override suspend fun getByStatusForVault(vaultId: String, status: SyncStatus): List<SyncState> {
+        return syncStates.value.values.filter {
+            it.vaultId == vaultId && it.status == status
+        }
+    }
+
+    override suspend fun getPendingUploads(vaultId: String, maxRetries: Int): List<SyncState> {
+        return syncStates.value.values.filter {
+            it.vaultId == vaultId &&
+            it.status == SyncStatus.PENDING_UPLOAD &&
+            it.retryCount < maxRetries
+        }
+    }
+
+    override suspend fun getPendingDownloads(vaultId: String): List<SyncState> {
+        return syncStates.value.values.filter {
+            it.vaultId == vaultId && it.status == SyncStatus.PENDING_DOWNLOAD
+        }
+    }
+
+    override suspend fun getConflicts(vaultId: String): List<SyncState> {
+        return syncStates.value.values.filter {
+            it.vaultId == vaultId && it.status == SyncStatus.CONFLICT
+        }
+    }
+
+    override suspend fun getCountByStatus(vaultId: String, status: SyncStatus): Int {
+        return syncStates.value.values.count {
+            it.vaultId == vaultId && it.status == status
+        }
+    }
+
+    override suspend fun getErrorCount(vaultId: String): Int {
+        return syncStates.value.values.count {
+            it.vaultId == vaultId && it.status == SyncStatus.ERROR
+        }
+    }
+
+    override suspend fun upsert(syncState: SyncState) {
+        syncStates.value = syncStates.value + (syncState.noteId to syncState)
+    }
+
+    override suspend fun upsertAll(syncStates: List<SyncState>) {
+        this.syncStates.value = this.syncStates.value + syncStates.associateBy { it.noteId }
+    }
+
+    override suspend fun delete(noteId: String) {
+        syncStates.value = syncStates.value - noteId
+    }
+
+    override suspend fun deleteForVault(vaultId: String) {
+        syncStates.value = syncStates.value.filterValues { it.vaultId != vaultId }
+    }
+
+    override suspend fun deleteSynced() {
+        syncStates.value = syncStates.value.filterValues { it.status != SyncStatus.SYNCED }
+    }
+
+    override suspend fun resetRetryCountsForErrors() {
+        syncStates.value = syncStates.value.mapValues { (_, state) ->
+            if (state.status == SyncStatus.ERROR) {
+                state.copy(retryCount = 0)
+            } else {
+                state
+            }
+        }
+    }
+
+    override suspend fun getSyncStatistics(vaultId: String): Map<SyncStatus, Int> {
+        return syncStates.value.values
+            .filter { it.vaultId == vaultId }
+            .groupBy { it.status }
+            .mapValues { it.value.size }
+    }
+
+    // Test helpers
+    fun setSyncStates(states: List<SyncState>) {
+        syncStates.value = states.associateBy { it.noteId }
+    }
+
+    fun addSyncState(state: SyncState) {
+        syncStates.value = syncStates.value + (state.noteId to state)
+    }
+
+    fun clear() {
+        syncStates.value = emptyMap()
     }
 }

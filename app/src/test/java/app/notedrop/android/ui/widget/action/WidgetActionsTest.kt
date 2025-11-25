@@ -10,6 +10,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
 import com.google.common.truth.Truth.assertThat
 import io.mockk.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -41,7 +42,7 @@ class WidgetActionsTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         glanceId = mockk(relaxed = true)
-        actionParameters = ActionParameters()
+        actionParameters = mockk(relaxed = true)
 
         every { glanceId.toString() } returns "test-glance-id"
     }
@@ -229,11 +230,17 @@ class WidgetActionsTest {
 
         // Then: Should launch activities with different glance IDs
         val shadowApplication = shadowOf(context as android.app.Application)
-        val intent1 = shadowApplication.nextStartedActivity
-        val intent2 = shadowApplication.nextStartedActivity
+        val intents = mutableListOf<Intent>()
 
-        assertThat(intent1.getStringExtra("glance_id")).isEqualTo("glance-id-1")
-        assertThat(intent2.getStringExtra("glance_id")).isEqualTo("glance-id-2")
+        var intent = shadowApplication.nextStartedActivity
+        while (intent != null) {
+            intents.add(intent)
+            intent = shadowApplication.nextStartedActivity
+        }
+
+        assertThat(intents).hasSize(2)
+        val glanceIds = intents.map { it.getStringExtra("glance_id") }
+        assertThat(glanceIds).containsExactly("glance-id-1", "glance-id-2")
     }
 
     // ==================== Error Handling Tests ====================
@@ -260,7 +267,7 @@ class WidgetActionsTest {
         val voiceAction = VoiceRecordAction()
         val cameraAction = InstantCameraAction()
 
-        val emptyParams = ActionParameters()
+        val emptyParams = mockk<ActionParameters>(relaxed = true)
 
         // When: Actions are triggered with empty parameters
         // Then: Should not throw due to missing parameters (they don't use any)
@@ -300,10 +307,10 @@ class WidgetActionsTest {
         val action = OpenTextInputAction()
 
         // When: Action is triggered from multiple coroutines concurrently
-        val job1 = kotlinx.coroutines.launch {
+        val job1 = launch {
             action.onAction(context, glanceId, actionParameters)
         }
-        val job2 = kotlinx.coroutines.launch {
+        val job2 = launch {
             action.onAction(context, glanceId, actionParameters)
         }
 
