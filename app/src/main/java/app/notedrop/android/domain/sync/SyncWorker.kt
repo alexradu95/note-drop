@@ -10,6 +10,9 @@ import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.SyncQueueRepository
 import app.notedrop.android.domain.repository.SyncStateRepository
 import app.notedrop.android.domain.repository.VaultRepository
+import com.github.michaelbull.result.getOrElse
+import com.github.michaelbull.result.onFailure
+import com.github.michaelbull.result.onSuccess
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -88,7 +91,10 @@ class SyncWorker @AssistedInject constructor(
                 }
 
                 // 2. Sync unsynced notes (isSynced = false)
-                val unsyncedNotes = noteRepository.getUnsyncedNotes(vault.id)
+                val unsyncedNotes = noteRepository.getUnsyncedNotes(vault.id).getOrElse { error ->
+                    Log.e(TAG, "Failed to get unsynced notes: $error")
+                    emptyList()
+                }
                 Log.d(TAG, "Found ${unsyncedNotes.size} unsynced notes")
 
                 unsyncedNotes.forEach { note ->

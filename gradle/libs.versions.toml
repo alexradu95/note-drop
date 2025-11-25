@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.1"
-kotlin = "2.2.0"
+kotlin = "2.0.21"
 coreKtx = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -39,7 +39,7 @@ workManager = "2.9.0"
 cameraX = "1.4.1"
 
 # KSP
-ksp = "2.2.0-2.0.2"
+ksp = "2.0.21-1.0.28"
 
 # Testing
 mockk = "1.13.13"

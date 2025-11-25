@@ -30,6 +30,9 @@ import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.ui.theme.NoteDropTheme
+import com.github.michaelbull.result.getOrElse
+import com.github.michaelbull.result.onFailure
+import com.github.michaelbull.result.onSuccess
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -223,7 +226,12 @@ class TransparentCameraActivity : ComponentActivity() {
     private suspend fun savePhotoNote(tempFile: File) {
         try {
             // Get default vault
-            val vault = vaultRepository.getDefaultVault()
+            val vault = vaultRepository.getDefaultVault().getOrElse { error ->
+                Log.e(TAG, "Failed to get default vault: $error")
+                tempFile.delete()
+                return
+            }
+
             if (vault == null) {
                 Log.w(TAG, "No default vault configured, photo not saved")
                 tempFile.delete()
@@ -280,13 +288,15 @@ class TransparentCameraActivity : ComponentActivity() {
                                     noteRepository.updateNote(savedNote.copy(
                                         filePath = filePath,
                                         isSynced = true
-                                    ))
+                                    )).onFailure { updateError ->
+                                        Log.e(TAG, "Failed to update note: $updateError")
+                                    }
                                 }.onFailure { providerError ->
-                                    Log.e(TAG, "Failed to sync photo note to provider", providerError)
+                                    Log.e(TAG, "Failed to sync photo note to provider: $providerError")
                                 }
                             }
                         }.onFailure { error ->
-                            Log.e(TAG, "Failed to save photo note to database", error)
+                            Log.e(TAG, "Failed to save photo note to database: $error")
                         }
                     }
                 }

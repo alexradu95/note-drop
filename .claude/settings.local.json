@@ -24,7 +24,8 @@
       "Bash(./gradlew.bat:*)",
       "WebFetch(domain:github.com)",
       "WebSearch",
-      "Bash(.gradlew.bat --version)"
+      "Bash(.gradlew.bat --version)",
+      "SlashCommand(/sc:recommend)"
     ],
     "deny": [],
     "ask": []

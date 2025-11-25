@@ -11,6 +11,9 @@ import app.notedrop.android.domain.model.SyncStatus
 import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.SyncStateRepository
 import app.notedrop.android.domain.repository.VaultRepository
+import com.github.michaelbull.result.getOrElse
+import com.github.michaelbull.result.onFailure
+import com.github.michaelbull.result.onSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -41,8 +44,9 @@ class SyncCoordinatorImpl @Inject constructor(
                 return@coroutineScope Result.failure(Exception("Sync already in progress for vault $vaultId"))
             }
 
-            val vault = vaultRepository.getVaultById(vaultId)
-                ?: return@coroutineScope Result.failure(Exception("Vault not found: $vaultId"))
+            val vault = vaultRepository.getVaultById(vaultId).getOrElse { error ->
+                return@coroutineScope Result.failure(Exception("Vault not found: $vaultId - $error"))
+            }
 
             val config = vault.providerConfig
             val syncMode = getSyncMode(config)
@@ -106,11 +110,13 @@ class SyncCoordinatorImpl @Inject constructor(
 
     override suspend fun syncNote(noteId: String): Result<Unit> {
         return try {
-            val note = noteRepository.getNoteById(noteId)
-                ?: return Result.failure(Exception("Note not found: $noteId"))
+            val note = noteRepository.getNoteById(noteId).getOrElse { error ->
+                return Result.failure(Exception("Note not found: $noteId - $error"))
+            }
 
-            val vault = vaultRepository.getVaultById(note.vaultId)
-                ?: return Result.failure(Exception("Vault not found: ${note.vaultId}"))
+            val vault = vaultRepository.getVaultById(note.vaultId).getOrElse { error ->
+                return Result.failure(Exception("Vault not found: ${note.vaultId} - $error"))
+            }
 
             val provider = providerFactory.getProvider(vault.providerType)
 
@@ -165,8 +171,9 @@ class SyncCoordinatorImpl @Inject constructor(
         try {
             if (!isActive) throw CancellationException()
 
-            val vault = vaultRepository.getVaultById(vaultId)
-                ?: return@coroutineScope Result.failure(Exception("Vault not found"))
+            val vault = vaultRepository.getVaultById(vaultId).getOrElse { error ->
+                return@coroutineScope Result.failure(Exception("Vault not found - $error"))
+            }
 
             val provider = providerFactory.getProvider(vault.providerType)
 
@@ -182,9 +189,8 @@ class SyncCoordinatorImpl @Inject constructor(
             pendingUploads.forEach { syncState ->
                 if (!isActive) throw CancellationException()
 
-                val note = noteRepository.getNoteById(syncState.noteId)
-                if (note == null) {
-                    // Note was deleted locally
+                val note = noteRepository.getNoteById(syncState.noteId).getOrElse {
+                    // Note was deleted locally or error occurred
                     syncStateRepository.delete(syncState.noteId)
                     return@forEach
                 }
@@ -204,7 +210,7 @@ class SyncCoordinatorImpl @Inject constructor(
                     uploadedCount++
 
                     // Update note as synced
-                    noteRepository.updateNote(note.copy(isSynced = true))
+                    noteRepository.updateNote(note.copy(isSynced = true)).getOrElse { /* ignore update error */ }
                 }.onFailure { error ->
                     // Update sync state with error
                     syncStateRepository.upsert(
@@ -229,8 +235,9 @@ class SyncCoordinatorImpl @Inject constructor(
         try {
             if (!isActive) throw CancellationException()
 
-            val vault = vaultRepository.getVaultById(vaultId)
-                ?: return@coroutineScope Result.failure(Exception("Vault not found"))
+            val vault = vaultRepository.getVaultById(vaultId).getOrElse { error ->
+                return@coroutineScope Result.failure(Exception("Vault not found - $error"))
+            }
 
             val provider = providerFactory.getProvider(vault.providerType)
 
@@ -248,7 +255,7 @@ class SyncCoordinatorImpl @Inject constructor(
                 if (!isActive) throw CancellationException()
 
                 val syncState = syncStateRepository.getSyncState(metadata.id)
-                val localNote = noteRepository.getNoteById(metadata.id)
+                val localNote = noteRepository.getNoteById(metadata.id).getOrElse { null }
 
                 // Check if we need to download this note
                 val shouldDownload = syncState == null ||
@@ -260,7 +267,7 @@ class SyncCoordinatorImpl @Inject constructor(
                     provider.loadNote(metadata.id, vault).onSuccess { remoteNote ->
                         if (localNote == null) {
                             // New note from remote
-                            noteRepository.createNote(remoteNote.copy(isSynced = true))
+                            noteRepository.createNote(remoteNote.copy(isSynced = true)).getOrElse { return@onSuccess }
                             downloadedCount++
 
                             // Create sync state
@@ -287,7 +294,7 @@ class SyncCoordinatorImpl @Inject constructor(
                                 )
                             } else {
                                 // Update local note with remote version
-                                noteRepository.updateNote(remoteNote.copy(isSynced = true))
+                                noteRepository.updateNote(remoteNote.copy(isSynced = true)).getOrElse { return@onSuccess }
                                 downloadedCount++
 
                                 // Update sync state
@@ -333,8 +340,9 @@ class SyncCoordinatorImpl @Inject constructor(
 
     override suspend fun resolveConflicts(vaultId: String): Result<Int> {
         return try {
-            val vault = vaultRepository.getVaultById(vaultId)
-                ?: return Result.failure(Exception("Vault not found"))
+            val vault = vaultRepository.getVaultById(vaultId).getOrElse { error ->
+                return Result.failure(Exception("Vault not found - $error"))
+            }
 
             val provider = providerFactory.getProvider(vault.providerType)
             val strategy = getConflictStrategy(vault.providerConfig)
@@ -343,8 +351,7 @@ class SyncCoordinatorImpl @Inject constructor(
             var resolvedCount = 0
 
             conflicts.forEach { syncState ->
-                val localNote = noteRepository.getNoteById(syncState.noteId)
-                if (localNote == null) {
+                val localNote = noteRepository.getNoteById(syncState.noteId).getOrElse {
                     syncStateRepository.delete(syncState.noteId)
                     return@forEach
                 }
@@ -370,7 +377,7 @@ class SyncCoordinatorImpl @Inject constructor(
 
                         is ConflictResolution.UseRemote -> {
                             // Keep remote, update local
-                            noteRepository.updateNote(remoteNote)
+                            noteRepository.updateNote(remoteNote).getOrElse { return@onSuccess }
                             syncStateRepository.upsert(
                                 syncState.copy(
                                     status = SyncStatus.SYNCED,
@@ -396,7 +403,7 @@ class SyncCoordinatorImpl @Inject constructor(
 
                         is ConflictResolution.Merged -> {
                             // Merged successfully
-                            noteRepository.updateNote(resolution.note)
+                            noteRepository.updateNote(resolution.note).getOrElse { return@onSuccess }
                             provider.saveNote(resolution.note, vault)
                             syncStateRepository.upsert(
                                 syncState.copy(
@@ -433,7 +440,9 @@ class SyncCoordinatorImpl @Inject constructor(
         syncStateRepository.deleteForVault(vaultId)
 
         // Get all notes for the vault
-        val notes = noteRepository.getNotesForVault(vaultId)
+        val notes = noteRepository.getNotesForVault(vaultId).getOrElse { error ->
+            return Result.failure(Exception("Failed to get notes for vault: $error"))
+        }
 
         // Create new sync states for all notes
         val syncStates = notes.map { note ->

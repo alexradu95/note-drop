@@ -201,7 +201,7 @@ dependencies {
     implementation("androidx.tracing:tracing-ktx:1.3.0-alpha02")
 
     // Error Handling
-    implementation("com.michael-bull.kotlin-result:kotlin-result:2.1.0")
+    implementation("com.michael-bull.kotlin-result:kotlin-result:1.1.20")
 
     // Better DateTime handling for sync
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")

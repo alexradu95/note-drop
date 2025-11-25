@@ -23,6 +23,9 @@ import app.notedrop.android.domain.repository.VaultRepository
 import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
 import app.notedrop.android.ui.widget.VoiceCaptureWidget
+import com.github.michaelbull.result.getOrElse
+import com.github.michaelbull.result.onFailure
+import com.github.michaelbull.result.onSuccess
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -280,7 +283,12 @@ class VoiceRecordingService : Service() {
     private suspend fun saveVoiceNote(tempFile: File) {
         try {
             // Get default vault
-            val vault = vaultRepository.getDefaultVault()
+            val vault = vaultRepository.getDefaultVault().getOrElse { error ->
+                Log.e(TAG, "Failed to get default vault: $error")
+                tempFile.delete()
+                return
+            }
+
             if (vault == null) {
                 Log.w(TAG, "No default vault configured, voice note not saved")
                 tempFile.delete()
@@ -339,13 +347,15 @@ class VoiceRecordingService : Service() {
                                     noteRepository.updateNote(savedNote.copy(
                                         filePath = filePath,
                                         isSynced = true
-                                    ))
+                                    )).onFailure { updateError ->
+                                        Log.e(TAG, "Failed to update note: $updateError")
+                                    }
                                 }.onFailure { providerError ->
-                                    Log.e(TAG, "Failed to sync voice note to provider", providerError)
+                                    Log.e(TAG, "Failed to sync voice note to provider: $providerError")
                                 }
                             }
                         }.onFailure { error ->
-                            Log.e(TAG, "Failed to save voice note to database", error)
+                            Log.e(TAG, "Failed to save voice note to database: $error")
                         }
                     }
                 }

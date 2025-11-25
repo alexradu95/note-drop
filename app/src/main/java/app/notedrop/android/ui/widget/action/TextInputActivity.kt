@@ -18,6 +18,9 @@ import app.notedrop.android.domain.repository.VaultRepository
 import app.notedrop.android.domain.sync.ProviderFactory
 import app.notedrop.android.ui.theme.NoteDropTheme
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
+import com.github.michaelbull.result.getOrElse
+import com.github.michaelbull.result.onFailure
+import com.github.michaelbull.result.onSuccess
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -137,7 +140,12 @@ class TextInputActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 // Get default vault
-                val vault = vaultRepository.getDefaultVault()
+                val vault = vaultRepository.getDefaultVault().getOrElse { error ->
+                    android.util.Log.e("TextInputActivity", "Failed to get default vault: $error")
+                    finish()
+                    return@launch
+                }
+
                 if (vault == null) {
                     // No default vault configured, still finish activity
                     finish()
@@ -176,7 +184,9 @@ class TextInputActivity : ComponentActivity() {
                                 filePath = filePath,
                                 isSynced = true
                             )
-                            noteRepository.updateNote(updatedNote)
+                            noteRepository.updateNote(updatedNote).onFailure { updateError ->
+                                android.util.Log.e("TextInputActivity", "Failed to update note: $updateError")
+                            }
                         }.onFailure { providerError ->
                             android.util.Log.e("TextInputActivity", "Failed to save to provider", providerError)
                         }
