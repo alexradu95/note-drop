@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     jacoco
+    id("org.jetbrains.dokka")
 }
 
 android {
@@ -44,6 +45,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -193,4 +195,34 @@ dependencies {
 
     // Debug
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Performance & Quality - Quick Wins
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.14")
+    implementation("androidx.tracing:tracing-ktx:1.3.0-alpha02")
+
+    // Error Handling
+    implementation("com.michael-bull.kotlin-result:kotlin-result:2.1.0")
+
+    // Better DateTime handling for sync
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+}
+
+// Dokka Configuration for API Documentation
+tasks.dokkaHtml.configure {
+    outputDirectory.set(layout.buildDirectory.dir("dokka"))
+
+    dokkaSourceSets {
+        named("main") {
+            moduleName.set("NoteDrop")
+
+            // Include project description
+            includes.from("Module.md")
+
+            // Suppress warnings for internal APIs
+            suppressInheritedMembers.set(true)
+
+            // Link to Android SDK documentation
+            noAndroidSdkLink.set(false)
+        }
+    }
 }

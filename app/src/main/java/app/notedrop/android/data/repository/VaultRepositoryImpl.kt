@@ -3,8 +3,16 @@ package app.notedrop.android.data.repository
 import app.notedrop.android.data.local.dao.VaultDao
 import app.notedrop.android.data.local.entity.toDomain
 import app.notedrop.android.data.local.entity.toEntity
+import app.notedrop.android.domain.model.AppError
 import app.notedrop.android.domain.model.Vault
 import app.notedrop.android.domain.repository.VaultRepository
+import app.notedrop.android.util.databaseResultOf
+import app.notedrop.android.util.toResultOrNotFound
+import com.github.michaelbull.result.Err
+import com.github.michaelbull.result.Ok
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.andThen
+import com.github.michaelbull.result.map
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -25,18 +33,26 @@ class VaultRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getVaultById(id: String): Vault? {
-        return vaultDao.getVaultById(id)?.toDomain()
+    override suspend fun getVaultById(id: String): Result<Vault, AppError> {
+        return databaseResultOf {
+            vaultDao.getVaultById(id)
+        }.andThen { entity ->
+            entity.toResultOrNotFound("Vault", id)
+        }.map { entity ->
+            entity.toDomain()
+        }
     }
 
     override fun getVaultByIdFlow(id: String): Flow<Vault?> {
         return vaultDao.getVaultByIdFlow(id).map { it?.toDomain() }
     }
 
-    override suspend fun getDefaultVault(): Vault? {
-        val entity = vaultDao.getDefaultVault()
-        android.util.Log.d("VaultRepositoryImpl", "getDefaultVault: entity=${entity?.id}, isDefault=${entity?.isDefault}")
-        return entity?.toDomain()
+    override suspend fun getDefaultVault(): Result<Vault?, AppError> {
+        return databaseResultOf {
+            val entity = vaultDao.getDefaultVault()
+            android.util.Log.d("VaultRepositoryImpl", "getDefaultVault: entity=${entity?.id}, isDefault=${entity?.isDefault}")
+            entity?.toDomain()
+        }
     }
 
     override fun getDefaultVaultFlow(): Flow<Vault?> {
@@ -46,39 +62,31 @@ class VaultRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun createVault(vault: Vault): Result<Vault> {
-        return try {
+    override suspend fun createVault(vault: Vault): Result<Vault, AppError> {
+        return databaseResultOf {
             val entity = vault.toEntity()
             android.util.Log.d("VaultRepositoryImpl", "Inserting vault entity: id=${entity.id}, name=${entity.name}, isDefault=${entity.isDefault}, providerConfig=${entity.providerConfig}")
             vaultDao.insertVault(entity)
             android.util.Log.d("VaultRepositoryImpl", "Vault inserted successfully")
-            Result.success(vault)
-        } catch (e: Exception) {
-            android.util.Log.e("VaultRepositoryImpl", "Error creating vault", e)
-            Result.failure(e)
+            vault
         }
     }
 
-    override suspend fun updateVault(vault: Vault): Result<Vault> {
-        return try {
+    override suspend fun updateVault(vault: Vault): Result<Vault, AppError> {
+        return databaseResultOf {
             vaultDao.updateVault(vault.toEntity())
-            Result.success(vault)
-        } catch (e: Exception) {
-            Result.failure(e)
+            vault
         }
     }
 
-    override suspend fun deleteVault(id: String): Result<Unit> {
-        return try {
+    override suspend fun deleteVault(id: String): Result<Unit, AppError> {
+        return databaseResultOf {
             vaultDao.deleteVaultById(id)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
-    override suspend fun setDefaultVault(id: String): Result<Unit> {
-        return try {
+    override suspend fun setDefaultVault(id: String): Result<Unit, AppError> {
+        return databaseResultOf {
             android.util.Log.d("VaultRepositoryImpl", "Setting default vault: $id")
             vaultDao.setDefaultVault(id)
             android.util.Log.d("VaultRepositoryImpl", "Default vault set successfully")
@@ -86,20 +94,12 @@ class VaultRepositoryImpl @Inject constructor(
             // Verify the change
             val defaultVault = vaultDao.getDefaultVault()
             android.util.Log.d("VaultRepositoryImpl", "Current default vault after update: ${defaultVault?.id}, isDefault=${defaultVault?.isDefault}")
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            android.util.Log.e("VaultRepositoryImpl", "Error setting default vault", e)
-            Result.failure(e)
         }
     }
 
-    override suspend fun updateLastSynced(id: String): Result<Unit> {
-        return try {
+    override suspend fun updateLastSynced(id: String): Result<Unit, AppError> {
+        return databaseResultOf {
             vaultDao.updateLastSyncedAt(id, Instant.now().toEpochMilli())
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 }

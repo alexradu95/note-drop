@@ -1,10 +1,14 @@
 package app.notedrop.android.domain.repository
 
+import app.notedrop.android.domain.model.AppError
 import app.notedrop.android.domain.model.Template
+import com.github.michaelbull.result.Result
 import kotlinx.coroutines.flow.Flow
 
 /**
  * Repository interface for template operations.
+ *
+ * All mutating operations return Result<T, AppError> for type-safe error handling.
  */
 interface TemplateRepository {
     /**
@@ -15,7 +19,7 @@ interface TemplateRepository {
     /**
      * Get a single template by ID.
      */
-    suspend fun getTemplateById(id: String): Template?
+    suspend fun getTemplateById(id: String): Result<Template, AppError>
 
     /**
      * Get built-in templates.
@@ -35,25 +39,25 @@ interface TemplateRepository {
     /**
      * Create a new template.
      */
-    suspend fun createTemplate(template: Template): Result<Template>
+    suspend fun createTemplate(template: Template): Result<Template, AppError>
 
     /**
      * Update an existing template.
      */
-    suspend fun updateTemplate(template: Template): Result<Template>
+    suspend fun updateTemplate(template: Template): Result<Template, AppError>
 
     /**
      * Delete a template (only user-created).
      */
-    suspend fun deleteTemplate(id: String): Result<Unit>
+    suspend fun deleteTemplate(id: String): Result<Unit, AppError>
 
     /**
      * Increment usage count for a template.
      */
-    suspend fun incrementUsageCount(id: String): Result<Unit>
+    suspend fun incrementUsageCount(id: String): Result<Unit, AppError>
 
     /**
      * Initialize built-in templates if not present.
      */
-    suspend fun initializeBuiltInTemplates(): Result<Unit>
+    suspend fun initializeBuiltInTemplates(): Result<Unit, AppError>
 }

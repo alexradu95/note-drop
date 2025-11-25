@@ -7,10 +7,13 @@ import app.notedrop.android.data.voice.VoiceRecorder
 import app.notedrop.android.domain.model.Note
 import app.notedrop.android.domain.model.Template
 import app.notedrop.android.domain.model.TranscriptionStatus
+import app.notedrop.android.domain.model.toUserMessage
 import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.TemplateRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import app.notedrop.android.domain.sync.ProviderFactory
+import com.github.michaelbull.result.onFailure
+import com.github.michaelbull.result.onSuccess
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -182,6 +185,9 @@ class QuickCaptureViewModel @Inject constructor(
                             isSynced = true
                         )
                         noteRepository.updateNote(updatedNote)
+                            .onFailure { updateError ->
+                                android.util.Log.e("QuickCaptureViewModel", "Failed to update note with file path: ${updateError.toUserMessage()}")
+                            }
                     }.onFailure { providerError ->
                         android.util.Log.e("QuickCaptureViewModel", "Failed to save to provider", providerError)
                     }
@@ -196,7 +202,7 @@ class QuickCaptureViewModel @Inject constructor(
             }.onFailure { error ->
                 _uiState.value = _uiState.value.copy(
                     isSaving = false,
-                    error = error.message
+                    error = error.toUserMessage()
                 )
             }
         }

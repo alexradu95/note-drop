@@ -3,8 +3,14 @@ package app.notedrop.android.data.repository
 import app.notedrop.android.data.local.dao.TemplateDao
 import app.notedrop.android.data.local.entity.toDomain
 import app.notedrop.android.data.local.entity.toEntity
+import app.notedrop.android.domain.model.AppError
 import app.notedrop.android.domain.model.Template
 import app.notedrop.android.domain.repository.TemplateRepository
+import app.notedrop.android.util.databaseResultOf
+import app.notedrop.android.util.toResultOrNotFound
+import com.github.michaelbull.result.Result
+import com.github.michaelbull.result.andThen
+import com.github.michaelbull.result.map
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -24,8 +30,14 @@ class TemplateRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getTemplateById(id: String): Template? {
-        return templateDao.getTemplateById(id)?.toDomain()
+    override suspend fun getTemplateById(id: String): Result<Template, AppError> {
+        return databaseResultOf {
+            templateDao.getTemplateById(id)
+        }.andThen { entity ->
+            entity.toResultOrNotFound("Template", id)
+        }.map { entity ->
+            entity.toDomain()
+        }
     }
 
     override fun getBuiltInTemplates(): Flow<List<Template>> {
@@ -46,52 +58,39 @@ class TemplateRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun createTemplate(template: Template): Result<Template> {
-        return try {
+    override suspend fun createTemplate(template: Template): Result<Template, AppError> {
+        return databaseResultOf {
             templateDao.insertTemplate(template.toEntity())
-            Result.success(template)
-        } catch (e: Exception) {
-            Result.failure(e)
+            template
         }
     }
 
-    override suspend fun updateTemplate(template: Template): Result<Template> {
-        return try {
+    override suspend fun updateTemplate(template: Template): Result<Template, AppError> {
+        return databaseResultOf {
             templateDao.updateTemplate(template.toEntity())
-            Result.success(template)
-        } catch (e: Exception) {
-            Result.failure(e)
+            template
         }
     }
 
-    override suspend fun deleteTemplate(id: String): Result<Unit> {
-        return try {
+    override suspend fun deleteTemplate(id: String): Result<Unit, AppError> {
+        return databaseResultOf {
             templateDao.deleteTemplateById(id)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
-    override suspend fun incrementUsageCount(id: String): Result<Unit> {
-        return try {
+    override suspend fun incrementUsageCount(id: String): Result<Unit, AppError> {
+        return databaseResultOf {
             templateDao.incrementUsageCount(id)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
-    override suspend fun initializeBuiltInTemplates(): Result<Unit> {
-        return try {
+    override suspend fun initializeBuiltInTemplates(): Result<Unit, AppError> {
+        return databaseResultOf {
             val count = templateDao.getTemplateCount()
             if (count == 0) {
                 val builtInTemplates = Template.builtInTemplates().map { it.toEntity() }
                 templateDao.insertTemplates(builtInTemplates)
             }
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 }

@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.notedrop.android.domain.model.Note
 import app.notedrop.android.domain.model.SyncState
+import app.notedrop.android.domain.model.toUserMessage
 import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.SyncStateRepository
 import app.notedrop.android.domain.repository.VaultRepository
+import com.github.michaelbull.result.onFailure
+import com.github.michaelbull.result.onSuccess
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -147,6 +150,13 @@ class HomeViewModel @Inject constructor(
     fun deleteNote(noteId: String) {
         viewModelScope.launch {
             noteRepository.deleteNote(noteId)
+                .onSuccess {
+                    android.util.Log.d("HomeViewModel", "Note deleted successfully: $noteId")
+                }
+                .onFailure { error ->
+                    android.util.Log.e("HomeViewModel", "Failed to delete note: ${error.toUserMessage()}")
+                    // TODO: Show error to user via UI state
+                }
         }
     }
 
