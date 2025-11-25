@@ -157,6 +157,9 @@ dependencies {
     // DocumentFile (for folder picker)
     implementation("androidx.documentfile:documentfile:1.0.1")
 
+    // Markdown parsing
+    implementation("org.jetbrains:markdown:0.7.3")
+
     // Testing - Unit Tests
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

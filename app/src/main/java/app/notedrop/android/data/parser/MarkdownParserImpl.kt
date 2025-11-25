@@ -1,6 +1,12 @@
 package app.notedrop.android.data.parser
 
 import app.notedrop.android.domain.model.Note
+import org.intellij.markdown.MarkdownElementTypes
+import org.intellij.markdown.MarkdownTokenTypes
+import org.intellij.markdown.ast.ASTNode
+import org.intellij.markdown.ast.getTextInNode
+import org.intellij.markdown.flavours.commonmark.CommonMarkFlavourDescriptor
+import org.intellij.markdown.parser.MarkdownParser as JetBrainsMarkdownParser
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -8,7 +14,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Implementation of MarkdownParser.
+ * Implementation of MarkdownParser using JetBrains Markdown library.
  * Handles parsing and serialization of markdown files with YAML frontmatter.
  */
 @Singleton
@@ -17,10 +23,10 @@ class MarkdownParserImpl @Inject constructor() : MarkdownParser {
     companion object {
         private const val FRONTMATTER_DELIMITER = "---"
         private val INLINE_TAG_REGEX = Regex("""#([a-zA-Z0-9_-]+)""")
-        private val WIKI_LINK_REGEX = Regex("""\[\[([^\]|]+)(\|([^\]]+))?\]\]""")
-        private val MARKDOWN_LINK_REGEX = Regex("""\[([^\]]+)]\(([^)]+)\)""")
-        private val HEADING_REGEX = Regex("""^#+\s+(.+)$""", RegexOption.MULTILINE)
+        private val WIKI_LINK_REGEX = Regex("""(!?)\[\[([^\]|]+)(\|([^\]]+))?\]\]""")
     }
+
+    private val markdownFlavour = CommonMarkFlavourDescriptor()
 
     override fun parse(content: String, config: ParserConfig): ParsedMarkdown {
         val frontmatter = if (config.parseFrontmatter) {
@@ -31,12 +37,25 @@ class MarkdownParserImpl @Inject constructor() : MarkdownParser {
 
         val body = extractBody(content)
 
-        val title = when {
+        // Extract title and remove it from body if configured
+        val (title, contentWithoutTitle) = when {
             config.extractTitleFromContent && config.titleFromFirstHeading -> {
-                extractFirstHeading(body)
+                val extractedTitle = extractFirstHeading(body)
+                if (extractedTitle != null) {
+                    // Remove the first heading from body
+                    val bodyWithoutTitle = body.replaceFirst(
+                        Regex("""^#+\s+${Regex.escape(extractedTitle)}\s*\n+""", RegexOption.MULTILINE),
+                        ""
+                    )
+                    extractedTitle to bodyWithoutTitle
+                } else {
+                    (frontmatter["title"]?.toString() to body)
+                }
             }
-            else -> frontmatter["title"]?.toString()
+            else -> (frontmatter["title"]?.toString() to body)
         }
+
+        val finalContent = contentWithoutTitle
 
         val tags = mutableListOf<String>()
         if (config.parseFrontmatter) {
@@ -51,12 +70,12 @@ class MarkdownParserImpl @Inject constructor() : MarkdownParser {
 
         if (config.parseInlineTags) {
             // Tags from content
-            val inlineTags = extractInlineTags(body)
+            val inlineTags = extractInlineTags(finalContent)
             tags.addAll(inlineTags.filter { it !in tags })
         }
 
         val links = if (config.parseLinks) {
-            extractLinks(body, config)
+            extractLinks(finalContent, config)
         } else {
             emptyList()
         }
@@ -70,7 +89,7 @@ class MarkdownParserImpl @Inject constructor() : MarkdownParser {
         }
 
         return ParsedMarkdown(
-            content = body,
+            content = finalContent,
             title = title,
             frontmatter = frontmatter,
             tags = tags.distinct(),
@@ -174,7 +193,8 @@ class MarkdownParserImpl @Inject constructor() : MarkdownParser {
         val endIndex = lines.drop(startIndex + 1).indexOfFirst { it.trim() == FRONTMATTER_DELIMITER }
         if (endIndex == -1) return content
 
-        return lines.drop(startIndex + endIndex + 2).joinToString("\n").trim()
+        // Join body lines and trim only leading whitespace
+        return lines.drop(startIndex + endIndex + 2).joinToString("\n").trimStart()
     }
 
     override fun extractInlineTags(content: String): List<String> {
@@ -187,34 +207,70 @@ class MarkdownParserImpl @Inject constructor() : MarkdownParser {
     override fun extractLinks(content: String, config: ParserConfig): List<Link> {
         val links = mutableListOf<Link>()
 
+        // Extract wiki-style links first (custom syntax not supported by standard markdown)
         when (config.linkPattern) {
             LinkPattern.WIKI_ONLY, LinkPattern.WIKI_AND_MARKDOWN -> {
-                // Extract wiki-style links
                 WIKI_LINK_REGEX.findAll(content).forEach { match ->
                     val raw = match.value
-                    val target = match.groupValues[1].trim()
-                    val alias = match.groupValues.getOrNull(3)?.trim()
-                    val isEmbed = raw.startsWith("![[")
+                    val isEmbed = match.groupValues[1] == "!"
+                    val target = match.groupValues[2].trim()
+                    val aliasRaw = match.groupValues.getOrNull(4)?.trim()
+                    val alias = if (aliasRaw.isNullOrEmpty()) null else aliasRaw
                     links.add(Link.Wiki(raw, target, alias, isEmbed))
                 }
             }
             else -> {}
         }
 
+        // Extract markdown links using JetBrains parser
         when (config.linkPattern) {
             LinkPattern.MARKDOWN_ONLY, LinkPattern.WIKI_AND_MARKDOWN -> {
-                // Extract markdown links
-                MARKDOWN_LINK_REGEX.findAll(content).forEach { match ->
-                    val raw = match.value
-                    val text = match.groupValues[1]
-                    val url = match.groupValues[2]
-                    links.add(Link.Markdown(raw, text, url))
+                try {
+                    val parsedTree = JetBrainsMarkdownParser(markdownFlavour).buildMarkdownTreeFromString(content)
+                    extractMarkdownLinksFromNode(parsedTree, content, links)
+                } catch (e: Exception) {
+                    // Fallback to regex if parsing fails
+                    extractMarkdownLinksWithRegex(content, links)
                 }
             }
             else -> {}
         }
 
         return links
+    }
+
+    /**
+     * Extract markdown links from AST node recursively.
+     */
+    private fun extractMarkdownLinksFromNode(node: ASTNode, content: String, links: MutableList<Link>) {
+        if (node.type == MarkdownElementTypes.INLINE_LINK) {
+            val linkText = node.children.firstOrNull { it.type == MarkdownElementTypes.LINK_TEXT }
+            val linkDestination = node.children.firstOrNull { it.type == MarkdownElementTypes.LINK_DESTINATION }
+
+            if (linkText != null && linkDestination != null) {
+                val text = linkText.getTextInNode(content).toString().trim('[', ']')
+                val url = linkDestination.getTextInNode(content).toString()
+                val raw = node.getTextInNode(content).toString()
+                links.add(Link.Markdown(raw, text, url))
+            }
+        }
+
+        node.children.forEach { child ->
+            extractMarkdownLinksFromNode(child, content, links)
+        }
+    }
+
+    /**
+     * Fallback regex-based markdown link extraction.
+     */
+    private fun extractMarkdownLinksWithRegex(content: String, links: MutableList<Link>) {
+        val regex = Regex("""\[([^\]]+)]\(([^)]+)\)""")
+        regex.findAll(content).forEach { match ->
+            val raw = match.value
+            val text = match.groupValues[1]
+            val url = match.groupValues[2]
+            links.add(Link.Markdown(raw, text, url))
+        }
     }
 
     /**
@@ -280,10 +336,45 @@ class MarkdownParserImpl @Inject constructor() : MarkdownParser {
     }
 
     /**
-     * Extract first heading from content.
+     * Extract first heading from content using JetBrains Markdown parser.
      */
     private fun extractFirstHeading(content: String): String? {
-        return HEADING_REGEX.find(content)?.groupValues?.getOrNull(1)?.trim()
+        return try {
+            val parsedTree = JetBrainsMarkdownParser(markdownFlavour).buildMarkdownTreeFromString(content)
+            findFirstHeading(parsedTree, content)
+        } catch (e: Exception) {
+            // Fallback to regex if parsing fails
+            Regex("""^#+\s+(.+)$""", RegexOption.MULTILINE)
+                .find(content)?.groupValues?.getOrNull(1)?.trim()
+        }
+    }
+
+    /**
+     * Recursively find first heading in AST.
+     */
+    private fun findFirstHeading(node: ASTNode, content: String): String? {
+        if (node.type == MarkdownElementTypes.ATX_1 ||
+            node.type == MarkdownElementTypes.ATX_2 ||
+            node.type == MarkdownElementTypes.ATX_3 ||
+            node.type == MarkdownElementTypes.ATX_4 ||
+            node.type == MarkdownElementTypes.ATX_5 ||
+            node.type == MarkdownElementTypes.ATX_6) {
+
+            // Extract text content from heading, excluding the # symbols
+            val textContent = node.children
+                .filter { it.type != MarkdownTokenTypes.ATX_HEADER }
+                .joinToString("") { it.getTextInNode(content).toString() }
+                .trim()
+
+            return textContent
+        }
+
+        for (child in node.children) {
+            val heading = findFirstHeading(child, content)
+            if (heading != null) return heading
+        }
+
+        return null
     }
 
     /**

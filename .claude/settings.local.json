@@ -21,7 +21,8 @@
       "Bash(rm:*)",
       "Bash(gradlew.bat testDebugUnitTest:*)",
       "Bash(cat:*)",
-      "Bash(./gradlew.bat:*)"
+      "Bash(./gradlew.bat:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
