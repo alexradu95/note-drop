@@ -12,7 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import app.notedrop.android.navigation.NoteDropNavigation
 import app.notedrop.android.ui.theme.NoteDropTheme
-import app.notedrop.android.ui.widget.CaptureType
+import app.notedrop.android.domain.model.CaptureType
 import app.notedrop.android.ui.widget.action.CaptureActionIntent
 import dagger.hilt.android.AndroidEntryPoint
 

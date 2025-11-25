@@ -14,7 +14,12 @@
       "Bash(findstr:*)",
       "Bash(grep:*)",
       "Bash(.gradlew assembleDebug:*)",
-      "Bash(gradlew.bat assembleDebug:*)"
+      "Bash(gradlew.bat assembleDebug:*)",
+      "Bash(nul)",
+      "Bash(del \"C:\\Users\\eu_de\\AndroidStudioProjects\\NoteDrop\\app\\src\\test\\java\\app\\notedrop\\android\\ExampleUnitTest.kt\")",
+      "Bash(del \"C:\\Users\\eu_de\\AndroidStudioProjects\\NoteDrop\\app\\src\\androidTest\\java\\app\\notedrop\\android\\ExampleInstrumentedTest.kt\")",
+      "Bash(rm:*)",
+      "Bash(gradlew.bat testDebugUnitTest:*)"
     ],
     "deny": [],
     "ask": []

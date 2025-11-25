@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.notedrop.android.data.voice.RecordingState
 import app.notedrop.android.domain.model.Template
-import app.notedrop.android.ui.widget.CaptureType
+import app.notedrop.android.domain.model.CaptureType
 import app.notedrop.android.util.rememberAudioPermissionState
 
 /**

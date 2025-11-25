@@ -11,7 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import app.notedrop.android.ui.capture.QuickCaptureScreen
 import app.notedrop.android.ui.home.HomeScreen
 import app.notedrop.android.ui.settings.SettingsScreen
-import app.notedrop.android.ui.widget.CaptureType
+import app.notedrop.android.domain.model.CaptureType
 
 /**
  * Navigation routes for the app.

@@ -3,7 +3,7 @@ package app.notedrop.android.ui.widget.action
 import android.content.Context
 import android.content.Intent
 import app.notedrop.android.MainActivity
-import app.notedrop.android.ui.widget.CaptureType
+import app.notedrop.android.domain.model.CaptureType
 
 /**
  * Helper class to create intents for widget actions
