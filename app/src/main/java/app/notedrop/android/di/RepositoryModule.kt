@@ -6,20 +6,8 @@ import app.notedrop.android.data.provider.NoteProvider
 import app.notedrop.android.data.provider.ObsidianProvider
 import app.notedrop.android.data.provider.filesystem.AndroidFileSystemProvider
 import app.notedrop.android.data.provider.filesystem.FileSystemProvider
-import app.notedrop.android.data.repository.NoteRepositoryImpl
-import app.notedrop.android.data.repository.SyncQueueRepositoryImpl
-import app.notedrop.android.data.repository.SyncStateRepositoryImpl
-import app.notedrop.android.data.repository.TemplateRepositoryImpl
 import app.notedrop.android.data.repository.VaultRepositoryImpl
-import app.notedrop.android.domain.repository.NoteRepository
-import app.notedrop.android.domain.repository.SyncQueueRepository
-import app.notedrop.android.domain.repository.SyncStateRepository
-import app.notedrop.android.domain.repository.TemplateRepository
 import app.notedrop.android.domain.repository.VaultRepository
-import app.notedrop.android.domain.sync.ConflictResolver
-import app.notedrop.android.domain.sync.ConflictResolverImpl
-import app.notedrop.android.domain.sync.SyncCoordinator
-import app.notedrop.android.domain.sync.SyncCoordinatorImpl
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -36,36 +24,14 @@ import javax.inject.Singleton
 abstract class RepositoryModule {
 
     // ========== Repositories ==========
-
-    @Binds
-    @Singleton
-    abstract fun bindNoteRepository(
-        noteRepositoryImpl: NoteRepositoryImpl
-    ): NoteRepository
+    // VAULT-ONLY: Only keeping VaultRepository for vault configuration
+    // Removed: NoteRepository, TemplateRepository, SyncStateRepository, SyncQueueRepository
 
     @Binds
     @Singleton
     abstract fun bindVaultRepository(
         vaultRepositoryImpl: VaultRepositoryImpl
     ): VaultRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindTemplateRepository(
-        templateRepositoryImpl: TemplateRepositoryImpl
-    ): TemplateRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindSyncStateRepository(
-        syncStateRepositoryImpl: SyncStateRepositoryImpl
-    ): SyncStateRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindSyncQueueRepository(
-        syncQueueRepositoryImpl: SyncQueueRepositoryImpl
-    ): SyncQueueRepository
 
     // ========== Providers ==========
 
@@ -100,18 +66,7 @@ abstract class RepositoryModule {
     ): MarkdownParser
 
     // ========== Sync Components ==========
-
-    @Binds
-    @Singleton
-    abstract fun bindSyncCoordinator(
-        syncCoordinatorImpl: SyncCoordinatorImpl
-    ): SyncCoordinator
-
-    @Binds
-    @Singleton
-    abstract fun bindConflictResolver(
-        conflictResolverImpl: ConflictResolverImpl
-    ): ConflictResolver
+    // VAULT-ONLY: Removed sync components - write directly to vault without sync coordination
 
     companion object {
         /**

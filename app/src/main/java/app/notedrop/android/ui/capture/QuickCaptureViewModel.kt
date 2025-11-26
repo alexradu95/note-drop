@@ -12,10 +12,8 @@ import app.notedrop.android.domain.model.Template
 import app.notedrop.android.domain.model.TranscriptionStatus
 import app.notedrop.android.domain.model.Vault
 import app.notedrop.android.domain.model.toUserMessage
-import app.notedrop.android.domain.repository.NoteRepository
-import app.notedrop.android.domain.repository.TemplateRepository
+import app.notedrop.android.data.vault.TemplateReader
 import app.notedrop.android.domain.repository.VaultRepository
-import app.notedrop.android.domain.sync.ProviderFactory
 import com.github.michaelbull.result.onFailure
 import com.github.michaelbull.result.onSuccess
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,27 +33,24 @@ import javax.inject.Inject
 
 /**
  * ViewModel for Quick Capture screen.
+ *
+ * VAULT-ONLY ARCHITECTURE: Uses TemplateReader to read templates from vault
+ * and CreateNoteUseCase to write notes directly to vault (no DB).
  */
 @HiltViewModel
 class QuickCaptureViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val noteRepository: NoteRepository,
     private val vaultRepository: VaultRepository,
-    private val templateRepository: TemplateRepository,
+    private val templateReader: TemplateReader,
     private val voiceRecorder: VoiceRecorder,
-    private val providerFactory: ProviderFactory,
     private val createNoteUseCase: app.notedrop.android.domain.usecase.CreateNoteUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuickCaptureUiState())
     val uiState: StateFlow<QuickCaptureUiState> = _uiState.asStateFlow()
 
-    val templates = templateRepository.getAllTemplates()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    private val _templates = MutableStateFlow<List<Template>>(emptyList())
+    val templates: StateFlow<List<Template>> = _templates.asStateFlow()
 
     val defaultVault = vaultRepository.getDefaultVaultFlow()
         .stateIn(
@@ -72,16 +67,40 @@ class QuickCaptureViewModel @Inject constructor(
         )
 
     init {
-        // Log default vault changes
+        // Load templates when vault changes
         viewModelScope.launch {
             defaultVault.collect { vault ->
                 android.util.Log.d("QuickCaptureViewModel", "init - defaultVault changed: id=${vault?.id}, name=${vault?.name}")
+                loadTemplates(vault)
             }
         }
+    }
 
-        // Initialize built-in templates
+    /**
+     * Load templates from vault's template folder.
+     * Falls back to built-in templates if vault templates can't be loaded.
+     */
+    private fun loadTemplates(vault: Vault?) {
         viewModelScope.launch {
-            templateRepository.initializeBuiltInTemplates()
+            if (vault == null) {
+                // No vault, use built-in templates only
+                _templates.value = Template.builtInTemplates()
+                android.util.Log.d("QuickCaptureViewModel", "No vault, loaded ${_templates.value.size} built-in templates")
+                return@launch
+            }
+
+            val vaultUri = android.net.Uri.parse((vault.providerConfig as? ProviderConfig.ObsidianConfig)?.vaultPath)
+            val templatePath = (vault.providerConfig as? ProviderConfig.ObsidianConfig)?.templatePath
+
+            val result = templateReader.getAllTemplates(vaultUri, templatePath)
+            result.onSuccess { loadedTemplates ->
+                _templates.value = loadedTemplates
+                android.util.Log.d("QuickCaptureViewModel", "Loaded ${loadedTemplates.size} templates from vault")
+            }.onFailure { error ->
+                android.util.Log.e("QuickCaptureViewModel", "Failed to load templates: $error")
+                // Fallback to built-in templates
+                _templates.value = Template.builtInTemplates()
+            }
         }
     }
 
@@ -99,11 +118,7 @@ class QuickCaptureViewModel @Inject constructor(
             selectedTemplate = template,
             content = processedContent
         )
-
-        // Increment usage count
-        viewModelScope.launch {
-            templateRepository.incrementUsageCount(template.id)
-        }
+        // Note: In vault-only mode, we don't track usage count
     }
 
     fun onTagAdded(tag: String) {
@@ -162,7 +177,7 @@ class QuickCaptureViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSaving = true)
 
-            // Use the unified CreateNoteUseCase
+            // Use the unified CreateNoteUseCase (vault-only, no DB)
             val result = createNoteUseCase(
                 content = _uiState.value.content,
                 title = _uiState.value.title,
@@ -170,8 +185,8 @@ class QuickCaptureViewModel @Inject constructor(
                 voiceRecordingPath = _uiState.value.voiceRecordingPath
             )
 
-            result.onSuccess { savedNote ->
-                android.util.Log.d("QuickCaptureViewModel", "Note saved successfully: ${savedNote.id}")
+            result.onSuccess { filePath ->
+                android.util.Log.d("QuickCaptureViewModel", "Note saved successfully to: $filePath")
 
                 _uiState.value = QuickCaptureUiState(
                     isSaving = false,

@@ -20,11 +20,6 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        ksp {
-            arg("room.schemaLocation", "$projectDir/schemas")
-            arg("room.incremental", "true")
-        }
     }
 
     buildTypes {
@@ -128,10 +123,7 @@ dependencies {
     implementation(libs.hilt.work)
     ksp(libs.hilt.work.compiler)
 
-    // Room
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
-    ksp(libs.room.compiler)
+    // Room - REMOVED for vault-only architecture
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
@@ -182,8 +174,7 @@ dependencies {
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.arch.core.testing)
 
-    // Room Testing
-    androidTestImplementation(libs.room.testing)
+    // Room Testing - REMOVED for vault-only architecture
 
     // Hilt Testing
     testImplementation(libs.hilt.android.testing)

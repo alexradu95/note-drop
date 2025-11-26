@@ -143,16 +143,16 @@ class TextInputActivity : ComponentActivity() {
                     notificationId = NOTIFICATION_ID_SAVING
                 )
 
-                // Use the unified CreateNoteUseCase
+                // Use the unified CreateNoteUseCase (vault-only, no DB)
                 val result = createNoteUseCase(content = content)
 
-                result.onSuccess { savedNote ->
-                    android.util.Log.d("TextInputActivity", "Note saved successfully: ${savedNote.id}")
+                result.onSuccess { filePath ->
+                    android.util.Log.d("TextInputActivity", "Note saved successfully to: $filePath")
 
                     // Show success notification
                     showNotification(
                         title = "Note Saved",
-                        message = "Your note has been saved successfully",
+                        message = "Your note has been saved to vault",
                         notificationId = NOTIFICATION_ID_SUCCESS,
                         autoCancel = true
                     )

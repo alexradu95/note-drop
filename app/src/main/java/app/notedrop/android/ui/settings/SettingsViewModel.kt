@@ -9,7 +9,6 @@ import app.notedrop.android.domain.model.ProviderConfig
 import app.notedrop.android.domain.model.ProviderType
 import app.notedrop.android.domain.model.Vault
 import app.notedrop.android.domain.model.toUserMessage
-import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import com.github.michaelbull.result.getOrElse
 import com.github.michaelbull.result.onFailure
@@ -25,11 +24,12 @@ import javax.inject.Inject
 
 /**
  * ViewModel for Settings screen.
+ *
+ * VAULT-ONLY: Removed NoteRepository dependency - not needed in vault-only architecture.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val vaultRepository: VaultRepository,
-    private val noteRepository: NoteRepository,
     private val obsidianConfigParser: ObsidianConfigParser
 ) : ViewModel() {
 
@@ -50,45 +50,14 @@ class SettingsViewModel @Inject constructor(
             initialValue = null
         )
 
-    // Vault statistics flow
-    val vaultStats = vaults.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    ).let { vaultsFlow ->
-        kotlinx.coroutines.flow.flow {
-            vaultsFlow.collect { vaultsList ->
-                val statsMap = vaultsList.associate { vault ->
-                    val notes = noteRepository.getNotesForVault(vault.id).getOrElse { emptyList() }
-                    val unsyncedNotes = notes.filter { !it.isSynced }
-                    val syncSuccessRate = if (notes.isNotEmpty()) {
-                        ((notes.size - unsyncedNotes.size) * 100) / notes.size
-                    } else {
-                        100
-                    }
-
-                    val syncStatus = when {
-                        _uiState.value.syncingVaultIds.contains(vault.id) -> app.notedrop.android.ui.settings.SyncStatus.SYNCING
-                        unsyncedNotes.isEmpty() -> app.notedrop.android.ui.settings.SyncStatus.SYNCED
-                        unsyncedNotes.size == notes.size && notes.isNotEmpty() -> app.notedrop.android.ui.settings.SyncStatus.ERROR
-                        else -> app.notedrop.android.ui.settings.SyncStatus.UNSYNCED
-                    }
-
-                    vault.id to app.notedrop.android.ui.settings.VaultStatistics(
-                        noteCount = notes.size,
-                        unsyncedCount = unsyncedNotes.size,
-                        syncSuccessRate = syncSuccessRate,
-                        syncStatus = syncStatus
-                    )
-                }
-                emit(statsMap)
-            }
-        }.stateIn(
+    // VAULT-ONLY: Vault statistics removed - no database to query for note counts
+    // In vault-only architecture, we don't track note statistics in memory
+    val vaultStats = kotlinx.coroutines.flow.flowOf(emptyMap<String, app.notedrop.android.ui.settings.VaultStatistics>())
+        .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyMap()
         )
-    }
 
     fun createVault(
         name: String,
@@ -183,26 +152,17 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isDeleting = true)
 
-            // First, check if there are notes in this vault
-            val result = noteRepository.deleteNotesByVault(vaultId)
-
-            result.onSuccess {
-                vaultRepository.deleteVault(vaultId)
-                    .onSuccess {
-                        _uiState.value = SettingsUiState(isDeleting = false)
-                    }
-                    .onFailure { deleteError ->
-                        _uiState.value = _uiState.value.copy(
-                            isDeleting = false,
-                            error = deleteError.toUserMessage()
-                        )
-                    }
-            }.onFailure { error ->
-                _uiState.value = _uiState.value.copy(
-                    isDeleting = false,
-                    error = error.toUserMessage()
-                )
-            }
+            // VAULT-ONLY: Just delete vault configuration, notes remain in vault folder
+            vaultRepository.deleteVault(vaultId)
+                .onSuccess {
+                    _uiState.value = SettingsUiState(isDeleting = false)
+                }
+                .onFailure { deleteError ->
+                    _uiState.value = _uiState.value.copy(
+                        isDeleting = false,
+                        error = deleteError.toUserMessage()
+                    )
+                }
         }
     }
 

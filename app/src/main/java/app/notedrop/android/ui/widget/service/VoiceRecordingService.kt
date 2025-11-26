@@ -17,11 +17,9 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import app.notedrop.android.MainActivity
 import app.notedrop.android.R
-import app.notedrop.android.domain.model.Note
 import app.notedrop.android.domain.model.toUserMessage
-import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.VaultRepository
-import app.notedrop.android.domain.sync.ProviderFactory
+import app.notedrop.android.domain.usecase.CreateNoteUseCase
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
 import app.notedrop.android.ui.widget.VoiceCaptureWidget
 import com.github.michaelbull.result.getOrElse
@@ -49,17 +47,17 @@ import javax.inject.Inject
  * - Shows recording duration
  * - Saves audio file when stopped
  */
+/**
+ * VAULT-ONLY: Uses CreateNoteUseCase to write voice notes directly to vault.
+ */
 @AndroidEntryPoint
 class VoiceRecordingService : Service() {
 
     @Inject
-    lateinit var noteRepository: NoteRepository
+    lateinit var createNoteUseCase: CreateNoteUseCase
 
     @Inject
     lateinit var vaultRepository: VaultRepository
-
-    @Inject
-    lateinit var providerFactory: ProviderFactory
 
     companion object {
         private const val TAG = "VoiceRecordingService"
@@ -337,51 +335,19 @@ class VoiceRecordingService : Service() {
 
                         Log.d(TAG, "Audio file saved to vault: $audioRelativePath")
 
-                        // Create note with voice recording reference
-                        val note = Note(
+                        // Use unified CreateNoteUseCase (vault-only, no DB)
+                        val result = createNoteUseCase(
                             content = "Voice recording captured",
                             title = "Voice Note",
-                            vaultId = vault.id,
                             tags = listOf("voice-note"),
-                            createdAt = Instant.now(),
-                            updatedAt = Instant.now(),
-                            voiceRecordingPath = audioRelativePath,
-                            transcriptionStatus = app.notedrop.android.domain.model.TranscriptionStatus.PENDING
+                            voiceRecordingPath = audioRelativePath
                         )
 
-                        val result = noteRepository.createNote(note)
-
-                        result.onSuccess { savedNote ->
-                            Log.d(TAG, "Voice note saved to database: ${savedNote.id}")
-
-                            // Sync to provider
-                            val noteProvider = providerFactory.getProvider(vault.providerType)
-                            if (noteProvider.isAvailable(vault)) {
-                                val providerResult = noteProvider.saveNote(savedNote, vault)
-                                providerResult.onSuccess { filePath ->
-                                    Log.d(TAG, "Voice note synced to provider: $filePath")
-                                    showSuccessNotification("Voice note saved to daily note successfully")
-                                    noteRepository.updateNote(savedNote.copy(
-                                        filePath = filePath,
-                                        isSynced = true
-                                    )).onFailure { updateError ->
-                                        Log.e(TAG, "Failed to update note: $updateError")
-                                    }
-                                }.onFailure { providerError ->
-                                    Log.e(TAG, "Failed to sync voice note to provider: $providerError")
-                                    val errorMsg = if (providerError is app.notedrop.android.domain.model.AppError) {
-                                        providerError.toUserMessage()
-                                    } else {
-                                        providerError.toString()
-                                    }
-                                    showErrorNotification("Saved to database but failed to sync: $errorMsg")
-                                }
-                            } else {
-                                Log.w(TAG, "Provider not available, note saved to database only")
-                                showSuccessNotification("Voice note saved to database (vault offline)")
-                            }
+                        result.onSuccess { filePath ->
+                            Log.d(TAG, "Voice note saved to vault: $filePath")
+                            showSuccessNotification("Voice note saved to daily note successfully")
                         }.onFailure { error ->
-                            Log.e(TAG, "Failed to save voice note to database: $error")
+                            Log.e(TAG, "Failed to save voice note to vault: $error")
                             val errorMsg = if (error is app.notedrop.android.domain.model.AppError) {
                                 error.toUserMessage()
                             } else {

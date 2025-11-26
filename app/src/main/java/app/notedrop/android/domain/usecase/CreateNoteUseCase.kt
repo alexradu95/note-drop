@@ -3,26 +3,25 @@ package app.notedrop.android.domain.usecase
 import app.notedrop.android.domain.model.AppError
 import app.notedrop.android.domain.model.Note
 import app.notedrop.android.domain.model.TranscriptionStatus
-import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import app.notedrop.android.domain.sync.ProviderFactory
 import com.github.michaelbull.result.Err
 import com.github.michaelbull.result.Ok
 import com.github.michaelbull.result.Result
 import com.github.michaelbull.result.getOrElse
-import com.github.michaelbull.result.onFailure
-import com.github.michaelbull.result.onSuccess
 import java.time.Instant
 import javax.inject.Inject
 
 /**
  * Unified use case for creating notes across the app and widgets.
  *
+ * VAULT-ONLY ARCHITECTURE: This use case writes directly to the vault markdown files
+ * without any database intermediary. The vault is the single source of truth.
+ *
  * This ensures both the app and widgets use the exact same logic for:
- * - Vault retrieval
- * - Note creation
- * - Database persistence
- * - Provider synchronization
+ * - Vault retrieval and configuration
+ * - Note creation and validation
+ * - Direct markdown file writing
  * - Error handling
  *
  * Usage:
@@ -34,33 +33,34 @@ import javax.inject.Inject
  *     voiceRecordingPath = "attachments/recording.m4a"
  * )
  *
- * result.onSuccess { note ->
- *     // Note created successfully
+ * result.onSuccess { filePath ->
+ *     // Note created successfully at filePath in vault
  * }.onFailure { error ->
  *     // Handle error
  * }
  * ```
  */
 class CreateNoteUseCase @Inject constructor(
-    private val noteRepository: NoteRepository,
     private val vaultRepository: VaultRepository,
     private val providerFactory: ProviderFactory
 ) {
     /**
-     * Creates a new note and syncs it to the configured provider.
+     * Creates a new note and writes it directly to the vault.
+     *
+     * VAULT-ONLY: No database intermediary - writes directly to markdown file.
      *
      * @param content The note content (required, must not be blank)
      * @param title Optional note title
      * @param tags List of tags to associate with the note
      * @param voiceRecordingPath Optional path to voice recording in vault
-     * @return Result containing the created Note or an error
+     * @return Result containing the file path where note was created, or an error
      */
     suspend operator fun invoke(
         content: String,
         title: String? = null,
         tags: List<String> = emptyList(),
         voiceRecordingPath: String? = null
-    ): Result<Note, AppError> {
+    ): Result<String, AppError> {
         // Validate content
         if (content.isBlank()) {
             return Err(AppError.Validation.FieldError("content", "Note content cannot be empty"))
@@ -79,7 +79,7 @@ class CreateNoteUseCase @Inject constructor(
 
         android.util.Log.d(TAG, "Creating note in vault: ${vault.name}")
 
-        // Create note
+        // Create note object (for structure, not persisted to DB)
         val note = Note(
             content = content,
             title = title?.takeIf { it.isNotBlank() },
@@ -95,43 +95,27 @@ class CreateNoteUseCase @Inject constructor(
             updatedAt = Instant.now()
         )
 
-        // Save to local database
-        val createResult = noteRepository.createNote(note)
+        // Write directly to vault using provider
+        val noteProvider = providerFactory.getProvider(vault.providerType)
+        android.util.Log.d(TAG, "Got provider: ${noteProvider.javaClass.simpleName}")
 
-        return createResult.onSuccess { savedNote ->
-            android.util.Log.d(TAG, "Note saved to database: ${savedNote.id}")
+        val isAvailable = noteProvider.isAvailable(vault)
+        android.util.Log.d(TAG, "Provider available: $isAvailable")
 
-            // Sync to provider if configured
-            val noteProvider = providerFactory.getProvider(vault.providerType)
-            android.util.Log.d(TAG, "Got provider: ${noteProvider.javaClass.simpleName}")
-
-            val isAvailable = noteProvider.isAvailable(vault)
-            android.util.Log.d(TAG, "Provider available: $isAvailable")
-
-            if (isAvailable) {
-                android.util.Log.d(TAG, "Syncing note to provider...")
-                val providerResult = noteProvider.saveNote(savedNote, vault)
-
-                providerResult.onSuccess { filePath ->
-                    android.util.Log.d(TAG, "Provider save success: $filePath")
-
-                    // Update the note with the file path
-                    val updatedNote = savedNote.copy(
-                        filePath = filePath,
-                        isSynced = true
-                    )
-
-                    noteRepository.updateNote(updatedNote).onFailure { updateError ->
-                        android.util.Log.e(TAG, "Failed to update note with file path: $updateError")
-                    }
-                }.onFailure { providerError ->
-                    android.util.Log.e(TAG, "Failed to sync to provider: $providerError")
-                    // Note: We don't return error here because the note was saved to DB
-                }
-            } else {
-                android.util.Log.w(TAG, "Provider not available, note saved to database only")
-            }
+        if (!isAvailable) {
+            android.util.Log.e(TAG, "Provider not available")
+            return Err(AppError.Sync.PushFailed("Vault provider is not available"))
         }
+
+        // Save note directly to vault (no DB)
+        android.util.Log.d(TAG, "Writing note to vault...")
+        val providerResult = noteProvider.saveNote(note, vault)
+
+        providerResult.onSuccess { filePath ->
+            android.util.Log.d(TAG, "Note saved to vault successfully: $filePath")
+        }
+
+        return providerResult
     }
 
     companion object {

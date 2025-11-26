@@ -21,12 +21,16 @@ import app.notedrop.android.util.rememberAudioPermissionState
 /**
  * Quick Capture screen for creating notes.
  *
+ * VAULT-ONLY: This is now the main screen of the app (no home screen).
+ *
+ * @param onNavigateToSettings Callback to navigate to settings
+ * @param onNoteSaved Callback when note is saved successfully
  * @param initialCaptureType Optional capture type from widget (TEXT, VOICE, CAMERA)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickCaptureScreen(
-    onNavigateBack: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onNoteSaved: () -> Unit,
     viewModel: QuickCaptureViewModel = hiltViewModel(),
     initialCaptureType: CaptureType? = null
@@ -46,13 +50,13 @@ fun QuickCaptureScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Quick Capture") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                },
+                title = { Text("NoteDrop") },
                 actions = {
+                    // Settings button
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                    // Save button
                     IconButton(
                         onClick = { viewModel.saveNote() },
                         enabled = uiState.content.isNotBlank() && !uiState.isSaving
