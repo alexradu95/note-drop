@@ -8,7 +8,6 @@ import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.state.updateAppWidgetState
 import app.notedrop.android.ui.widget.InteractiveQuickCaptureWidget
-import app.notedrop.android.ui.widget.service.CameraService
 import app.notedrop.android.ui.widget.service.VoiceRecordingService
 
 /**
@@ -63,7 +62,11 @@ class VoiceRecordAction : ActionCallback {
 }
 
 /**
- * Captures photo instantly without opening camera UI
+ * VAULT-ONLY: Camera capture removed - not part of vault-only feature scope.
+ * User chose: Quick text capture, Voice recording, Tags, All widgets.
+ * Camera functionality was not selected.
+ *
+ * Kept as no-op for widget compatibility.
  */
 class InstantCameraAction : ActionCallback {
     override suspend fun onAction(
@@ -71,9 +74,8 @@ class InstantCameraAction : ActionCallback {
         glanceId: GlanceId,
         parameters: ActionParameters
     ) {
-        Log.d("WidgetActions", "InstantCameraAction triggered")
-
-        // Start camera service to capture photo
-        CameraService.capturePhoto(context, glanceId)
+        Log.d("WidgetActions", "InstantCameraAction triggered (no-op - camera removed in vault-only)")
+        // Camera service and TransparentCameraActivity removed in vault-only architecture
+        // This action does nothing but prevents widget compilation errors
     }
 }

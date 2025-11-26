@@ -111,11 +111,17 @@ class CreateNoteUseCase @Inject constructor(
         android.util.Log.d(TAG, "Writing note to vault...")
         val providerResult = noteProvider.saveNote(note, vault)
 
-        providerResult.onSuccess { filePath ->
-            android.util.Log.d(TAG, "Note saved to vault successfully: $filePath")
-        }
-
-        return providerResult
+        // Convert kotlin.Result to com.github.michaelbull.result.Result
+        return providerResult.fold(
+            onSuccess = { filePath ->
+                android.util.Log.d(TAG, "Note saved to vault successfully: $filePath")
+                Ok(filePath)
+            },
+            onFailure = { error ->
+                android.util.Log.e(TAG, "Failed to save note to vault", error)
+                Err(AppError.FileSystem.WriteError(vault.name, error))
+            }
+        )
     }
 
     companion object {
