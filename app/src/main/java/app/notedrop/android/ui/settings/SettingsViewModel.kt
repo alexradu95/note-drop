@@ -253,7 +253,9 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Trigger a sync for a specific vault
+     * VAULT-ONLY: Sync is not needed in vault-only architecture.
+     * Notes are written directly to vault, so they're always "synced".
+     * This method is kept for UI compatibility but does nothing.
      */
     fun syncVault(vaultId: String) {
         viewModelScope.launch {
@@ -261,37 +263,15 @@ class SettingsViewModel @Inject constructor(
                 syncingVaultIds = _uiState.value.syncingVaultIds + vaultId
             )
 
-            // Get all notes for this vault
-            noteRepository.getNotesForVault(vaultId)
-                .onSuccess { notes ->
-                    val unsyncedNotes = notes.filter { !it.isSynced }
-
-                    // Sync each unsynced note
-                    unsyncedNotes.forEach { note ->
-                        // Mark note as synced (update isSynced flag)
-                        noteRepository.updateNote(note.copy(isSynced = true))
-                            .onFailure { error ->
-                                android.util.Log.e("SettingsViewModel", "Failed to sync note ${note.id}: ${error.toUserMessage()}")
-                            }
-                    }
-
-                    // Update last synced timestamp
-                    vaultRepository.updateLastSynced(vaultId)
-                        .onFailure { error ->
-                            android.util.Log.e("SettingsViewModel", "Failed to update last synced: ${error.toUserMessage()}")
-                        }
-
-                    _uiState.value = _uiState.value.copy(
-                        syncingVaultIds = _uiState.value.syncingVaultIds - vaultId
-                    )
-                }
+            // Update last synced timestamp
+            vaultRepository.updateLastSynced(vaultId)
                 .onFailure { error ->
-                    android.util.Log.e("SettingsViewModel", "Error syncing vault: ${error.toUserMessage()}")
-                    _uiState.value = _uiState.value.copy(
-                        syncingVaultIds = _uiState.value.syncingVaultIds - vaultId,
-                        error = "Failed to sync vault: ${error.toUserMessage()}"
-                    )
+                    android.util.Log.e("SettingsViewModel", "Failed to update last synced: ${error.toUserMessage()}")
                 }
+
+            _uiState.value = _uiState.value.copy(
+                syncingVaultIds = _uiState.value.syncingVaultIds - vaultId
+            )
         }
     }
 }
