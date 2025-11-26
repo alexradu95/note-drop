@@ -159,6 +159,9 @@ dependencies {
     // DocumentFile (for folder picker)
     implementation("androidx.documentfile:documentfile:1.0.1")
 
+    // Coil (for image loading)
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
     // Markdown parsing
     implementation("org.jetbrains:markdown:0.7.3")
 

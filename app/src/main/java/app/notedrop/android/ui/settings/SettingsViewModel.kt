@@ -125,20 +125,21 @@ class SettingsViewModel @Inject constructor(
             result.onSuccess {
                 android.util.Log.d("SettingsViewModel", "Vault created successfully: ${vault.id}, isDefault in object=${vault.isDefault}")
 
-                // For Obsidian vaults, parse and update config with daily notes settings
+                // For Obsidian vaults, parse and update config with daily notes settings and attachments path
                 if (providerType == ProviderType.OBSIDIAN) {
                     try {
                         val parsedConfig = obsidianConfigParser.parseVaultConfig(android.net.Uri.parse(vaultPath))
-                        if (parsedConfig?.dailyNotes != null) {
+                        if (parsedConfig != null) {
                             val updatedProviderConfig = (vault.providerConfig as ProviderConfig.ObsidianConfig).copy(
-                                dailyNotesPath = parsedConfig.dailyNotes.folder,
-                                dailyNotesFormat = parsedConfig.dailyNotes.format
+                                dailyNotesPath = parsedConfig.dailyNotes?.folder,
+                                dailyNotesFormat = parsedConfig.dailyNotes?.format,
+                                attachmentsPath = parsedConfig.app?.attachmentFolderPath ?: "attachments"
                             )
                             val updatedVault = vault.copy(providerConfig = updatedProviderConfig)
                             vaultRepository.updateVault(updatedVault).onFailure { updateError ->
                                 android.util.Log.e("SettingsViewModel", "Failed to update vault config: ${updateError.toUserMessage()}")
                             }
-                            android.util.Log.d("SettingsViewModel", "Updated vault with daily notes config: folder=${parsedConfig.dailyNotes.folder}, format=${parsedConfig.dailyNotes.format}")
+                            android.util.Log.d("SettingsViewModel", "Updated vault config: dailyNotesFolder=${parsedConfig.dailyNotes?.folder}, dailyNotesFormat=${parsedConfig.dailyNotes?.format}, attachmentsPath=${parsedConfig.app?.attachmentFolderPath ?: "attachments"}")
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("SettingsViewModel", "Failed to parse vault config", e)

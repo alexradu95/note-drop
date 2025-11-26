@@ -1,5 +1,8 @@
 package app.notedrop.android.ui.home
 
+import android.media.MediaPlayer
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,11 +12,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.notedrop.android.domain.model.Note
+import app.notedrop.android.domain.model.ProviderConfig
 import app.notedrop.android.domain.model.SyncStatus
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import java.io.File
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -115,8 +125,11 @@ fun HomeScreen(
                         key = { it.id }
                     ) { note ->
                         val syncState = syncStatesMap[note.id]
+                        // Get the vault for this note
+                        val noteVault = allVaults.find { it.id == note.vaultId }
                         NoteCard(
                             note = note,
+                            vault = noteVault,
                             syncState = syncState,
                             onDelete = { viewModel.deleteNote(note.id) }
                         )
@@ -185,6 +198,7 @@ private fun FilterChips(
 @Composable
 private fun NoteCard(
     note: Note,
+    vault: app.notedrop.android.domain.model.Vault?,
     syncState: app.notedrop.android.domain.model.SyncState?,
     onDelete: () -> Unit
 ) {
@@ -242,6 +256,19 @@ private fun NoteCard(
                 overflow = TextOverflow.Ellipsis
             )
 
+            // Voice recording player
+            note.voiceRecordingPath?.let { audioPath ->
+                vault?.let { v ->
+                    VoiceRecordingPlayer(audioPath = audioPath, vault = v)
+                }
+            }
+
+            // Display images from markdown content
+            val imageLinks = extractImageLinks(note.content)
+            if (imageLinks.isNotEmpty() && vault != null) {
+                NoteImagesDisplay(imageLinks = imageLinks.take(2), vault = vault) // Show max 2 images
+            }
+
             // File path
             note.filePath?.let { filePath ->
                 Row(
@@ -264,22 +291,12 @@ private fun NoteCard(
                 }
             }
 
-            // Footer with tags and voice indicator
+            // Footer with tags
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Voice indicator
-                if (note.voiceRecordingPath != null) {
-                    Icon(
-                        Icons.Default.Mic,
-                        contentDescription = "Has voice recording",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
                 // Tags
                 note.tags.take(3).forEach { tag ->
                     AssistChip(
@@ -518,6 +535,232 @@ private fun VaultSelector(
             }
         }
     }
+}
+
+/**
+ * Voice recording player with waveform visualization
+ */
+@Composable
+private fun VoiceRecordingPlayer(audioPath: String, vault: app.notedrop.android.domain.model.Vault) {
+    var isPlaying by remember { mutableStateOf(false) }
+    val mediaPlayer = remember { MediaPlayer() }
+    val context = LocalContext.current
+
+    // Get the audio file URI from vault
+    val audioUri = remember(audioPath, vault) {
+        val config = vault.providerConfig as? ProviderConfig.ObsidianConfig
+        if (config != null) {
+            try {
+                val vaultUri = Uri.parse(config.vaultPath)
+                val vaultRoot = DocumentFile.fromTreeUri(context, vaultUri)
+                if (vaultRoot != null) {
+                    // Navigate to the audio file
+                    val pathParts = audioPath.split("/")
+                    var currentDir: DocumentFile? = vaultRoot
+
+                    // Navigate through directories
+                    for (i in 0 until pathParts.size - 1) {
+                        currentDir = currentDir?.findFile(pathParts[i])
+                        if (currentDir == null) break
+                    }
+
+                    // Find the audio file
+                    val audioFile = currentDir?.findFile(pathParts.last())
+                    audioFile?.uri
+                } else null
+            } catch (e: Exception) {
+                android.util.Log.e("VoicePlayer", "Error finding audio file", e)
+                null
+            }
+        } else null
+    }
+
+    DisposableEffect(audioPath) {
+        onDispose {
+            if (isPlaying) {
+                try {
+                    mediaPlayer.stop()
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+            mediaPlayer.release()
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Play/Pause button
+            IconButton(
+                onClick = {
+                    if (isPlaying) {
+                        try {
+                            mediaPlayer.pause()
+                            isPlaying = false
+                        } catch (e: Exception) {
+                            android.util.Log.e("VoicePlayer", "Error pausing audio", e)
+                            isPlaying = false
+                        }
+                    } else {
+                        if (audioUri != null) {
+                            try {
+                                mediaPlayer.reset()
+                                mediaPlayer.setDataSource(context, audioUri)
+                                mediaPlayer.prepare()
+                                mediaPlayer.start()
+                                isPlaying = true
+                                mediaPlayer.setOnCompletionListener {
+                                    isPlaying = false
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("VoicePlayer", "Error playing audio: ${e.message}", e)
+                            }
+                        } else {
+                            android.util.Log.e("VoicePlayer", "Audio URI is null, cannot play")
+                        }
+                    }
+                },
+                enabled = audioUri != null
+            ) {
+                Icon(
+                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = if (audioUri != null)
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    else
+                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.3f)
+                )
+            }
+
+            // Waveform visualization (simplified)
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Simple waveform bars
+                repeat(20) { index ->
+                    val height = remember { (10..30).random() }
+                    Surface(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(height.dp),
+                        color = if (isPlaying && index % 2 == 0)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.small
+                    ) {}
+                }
+            }
+
+            // Audio indicator icon
+            Icon(
+                Icons.Default.Mic,
+                contentDescription = "Voice recording",
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Display images from markdown content
+ */
+@Composable
+private fun NoteImagesDisplay(imageLinks: List<String>, vault: app.notedrop.android.domain.model.Vault) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        imageLinks.forEach { imagePath ->
+            // Resolve image URI from vault
+            val imageUri = remember(imagePath, vault) {
+                val config = vault.providerConfig as? ProviderConfig.ObsidianConfig
+                if (config != null) {
+                    try {
+                        val vaultUri = Uri.parse(config.vaultPath)
+                        val vaultRoot = DocumentFile.fromTreeUri(context, vaultUri)
+                        if (vaultRoot != null) {
+                            // Navigate to the image file
+                            val pathParts = imagePath.split("/")
+                            var currentDir: DocumentFile? = vaultRoot
+
+                            // Navigate through directories
+                            for (i in 0 until pathParts.size - 1) {
+                                currentDir = currentDir?.findFile(pathParts[i])
+                                if (currentDir == null) break
+                            }
+
+                            // Find the image file
+                            val imageFile = currentDir?.findFile(pathParts.last())
+                            imageFile?.uri
+                        } else null
+                    } catch (e: Exception) {
+                        android.util.Log.e("ImageDisplay", "Error finding image file", e)
+                        null
+                    }
+                } else null
+            }
+
+            if (imageUri != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val painter = rememberAsyncImagePainter(
+                        model = ImageRequest.Builder(context)
+                            .data(imageUri)
+                            .crossfade(true)
+                            .build()
+                    )
+                    Image(
+                        painter = painter,
+                        contentDescription = "Note image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Extract image links from markdown content
+ * Supports both ![alt](path) and ![[path]] syntax
+ */
+private fun extractImageLinks(content: String): List<String> {
+    val imageLinks = mutableListOf<String>()
+
+    // Extract ![alt](path) syntax
+    val markdownRegex = """!\[.*?]\((.*?)\)""".toRegex()
+    markdownRegex.findAll(content).forEach { match ->
+        match.groupValues.getOrNull(1)?.let { imageLinks.add(it) }
+    }
+
+    // Extract ![[path]] syntax (Obsidian wikilinks)
+    val wikilinksRegex = """!\[\[(.*?)\]\]""".toRegex()
+    wikilinksRegex.findAll(content).forEach { match ->
+        match.groupValues.getOrNull(1)?.let { imageLinks.add(it) }
+    }
+
+    return imageLinks
 }
 
 /**

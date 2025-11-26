@@ -553,6 +553,11 @@ class ObsidianProvider @Inject constructor(
         // Add content
         builder.append(note.content)
 
+        // Add voice recording link if present
+        if (note.voiceRecordingPath != null) {
+            builder.append(" ![[${note.voiceRecordingPath}]]")
+        }
+
         // Add tags inline if present
         if (note.tags.isNotEmpty()) {
             builder.append(" ")

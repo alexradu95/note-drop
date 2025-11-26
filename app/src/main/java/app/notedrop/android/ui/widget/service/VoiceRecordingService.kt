@@ -18,6 +18,7 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import app.notedrop.android.MainActivity
 import app.notedrop.android.R
 import app.notedrop.android.domain.model.Note
+import app.notedrop.android.domain.model.toUserMessage
 import app.notedrop.android.domain.repository.NoteRepository
 import app.notedrop.android.domain.repository.VaultRepository
 import app.notedrop.android.domain.sync.ProviderFactory
@@ -285,33 +286,48 @@ class VoiceRecordingService : Service() {
             // Get default vault
             val vault = vaultRepository.getDefaultVault().getOrElse { error ->
                 Log.e(TAG, "Failed to get default vault: $error")
+                val errorMsg = if (error is app.notedrop.android.domain.model.AppError) {
+                    error.toUserMessage()
+                } else {
+                    error.toString()
+                }
+                showErrorNotification("Failed to get vault: $errorMsg")
                 tempFile.delete()
                 return
             }
 
             if (vault == null) {
                 Log.w(TAG, "No default vault configured, voice note not saved")
+                showErrorNotification("No default vault configured. Please set up a vault in Settings.")
                 tempFile.delete()
                 return
             }
 
-            // Copy audio file to vault's audio/attachments folder
+            // Copy audio file to vault's configured attachments folder
             val audioFileName = tempFile.name
-            val audioRelativePath = "audio/$audioFileName"
+            val config = vault.providerConfig as? app.notedrop.android.domain.model.ProviderConfig.ObsidianConfig
+            val attachmentFolder = config?.attachmentsPath ?: "attachments"
+            val audioRelativePath = "$attachmentFolder/$audioFileName"
 
-            // Get vault root and create audio folder
-            val vaultUri = android.net.Uri.parse((vault.providerConfig as? app.notedrop.android.domain.model.ProviderConfig.ObsidianConfig)?.vaultPath)
+            // Get vault root and create attachment folder
+            val vaultUri = android.net.Uri.parse(config?.vaultPath)
             val vaultRoot = androidx.documentfile.provider.DocumentFile.fromTreeUri(this, vaultUri)
 
             if (vaultRoot != null && vaultRoot.exists()) {
-                // Find or create audio folder
-                val audioFolder = vaultRoot.findFile("audio") ?: vaultRoot.createDirectory("audio")
+                Log.d(TAG, "Vault root found: ${vaultRoot.name}, using attachment folder: $attachmentFolder")
+
+                // Find or create attachment folder
+                val audioFolder = vaultRoot.findFile(attachmentFolder) ?: vaultRoot.createDirectory(attachmentFolder)
 
                 if (audioFolder != null) {
+                    Log.d(TAG, "Attachment folder ready: ${audioFolder.name}")
+
                     // Create audio file in vault
-                    val audioFile = audioFolder.createFile("audio/m4a", audioFileName)
+                    val audioFile = audioFolder.createFile("audio/mp4", audioFileName)
 
                     if (audioFile != null) {
+                        Log.d(TAG, "Audio file created in vault: ${audioFile.name}")
+
                         // Copy temp file to vault
                         contentResolver.openOutputStream(audioFile.uri)?.use { outputStream ->
                             tempFile.inputStream().use { inputStream ->
@@ -344,6 +360,7 @@ class VoiceRecordingService : Service() {
                                 val providerResult = noteProvider.saveNote(savedNote, vault)
                                 providerResult.onSuccess { filePath ->
                                     Log.d(TAG, "Voice note synced to provider: $filePath")
+                                    showSuccessNotification("Voice note saved to daily note successfully")
                                     noteRepository.updateNote(savedNote.copy(
                                         filePath = filePath,
                                         isSynced = true
@@ -352,13 +369,37 @@ class VoiceRecordingService : Service() {
                                     }
                                 }.onFailure { providerError ->
                                     Log.e(TAG, "Failed to sync voice note to provider: $providerError")
+                                    val errorMsg = if (providerError is app.notedrop.android.domain.model.AppError) {
+                                        providerError.toUserMessage()
+                                    } else {
+                                        providerError.toString()
+                                    }
+                                    showErrorNotification("Saved to database but failed to sync: $errorMsg")
                                 }
+                            } else {
+                                Log.w(TAG, "Provider not available, note saved to database only")
+                                showSuccessNotification("Voice note saved to database (vault offline)")
                             }
                         }.onFailure { error ->
                             Log.e(TAG, "Failed to save voice note to database: $error")
+                            val errorMsg = if (error is app.notedrop.android.domain.model.AppError) {
+                                error.toUserMessage()
+                            } else {
+                                error.toString()
+                            }
+                            showErrorNotification("Failed to save note to database: $errorMsg")
                         }
+                    } else {
+                        Log.e(TAG, "Failed to create audio file in attachment folder: $attachmentFolder")
+                        showErrorNotification("Failed to create audio file in vault. Check permissions.")
                     }
+                } else {
+                    Log.e(TAG, "Failed to create or find attachment folder: $attachmentFolder in vault")
+                    showErrorNotification("Failed to create attachment folder: $attachmentFolder")
                 }
+            } else {
+                Log.e(TAG, "Vault root not accessible: vaultUri=$vaultUri, exists=${vaultRoot?.exists()}")
+                showErrorNotification("Cannot access vault. Please check vault permissions in Settings.")
             }
 
             // Clean up temp file
@@ -366,8 +407,41 @@ class VoiceRecordingService : Service() {
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save voice note", e)
+            showErrorNotification("Failed to save voice note: ${e.message}")
             tempFile.delete()
         }
+    }
+
+    /**
+     * Show error notification to user
+     */
+    private fun showErrorNotification(message: String) {
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Voice Recording Failed")
+            .setContentText(message)
+            .setSmallIcon(R.drawable.ic_mic_voice)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.notify(NOTIFICATION_ID + 1, notification)
+    }
+
+    /**
+     * Show success notification to user
+     */
+    private fun showSuccessNotification(message: String) {
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Voice Note Saved")
+            .setContentText(message)
+            .setSmallIcon(R.drawable.ic_mic_voice)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.notify(NOTIFICATION_ID + 1, notification)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

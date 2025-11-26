@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.notedrop.android.domain.model.ObsidianVaultConfig
+import app.notedrop.android.domain.model.ProviderConfig
 
 /**
  * Screen for viewing and configuring Obsidian vault settings
@@ -128,6 +129,30 @@ fun VaultConfigurationScreen(
                     AppConfigSection(app)
                 } ?: run {
                     NoConfigCard("App settings not configured")
+                }
+            }
+
+            // Active App Configuration (what the app is actually using)
+            item {
+                Text(
+                    text = "Active App Configuration",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+
+            item {
+                Text(
+                    text = "These are the values currently being used by NoteDrop",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            item {
+                (vault.providerConfig as? ProviderConfig.ObsidianConfig)?.let { config ->
+                    ActiveConfigSection(config)
+                } ?: run {
+                    NoConfigCard("Provider configuration not available")
                 }
             }
         }
@@ -322,6 +347,299 @@ private fun ConfigItem(
                 text = value,
                 style = MaterialTheme.typography.bodyLarge
             )
+        }
+    }
+}
+
+@Composable
+private fun ActiveConfigSection(config: ProviderConfig.ObsidianConfig) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Vault Path
+            ConfigItem(
+                icon = Icons.Default.Folder,
+                label = "Vault Path",
+                value = config.vaultPath
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            // Storage Paths Section
+            Text(
+                text = "Storage Paths",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            config.dailyNotesPath?.let { path ->
+                ConfigItem(
+                    icon = Icons.Default.CalendarToday,
+                    label = "Daily Notes Path",
+                    value = path
+                )
+            } ?: ConfigItem(
+                icon = Icons.Default.CalendarToday,
+                label = "Daily Notes Path",
+                value = "Not set (vault root)"
+            )
+
+            config.dailyNotesFormat?.let { format ->
+                ConfigItem(
+                    icon = Icons.Default.DateRange,
+                    label = "Daily Notes Format",
+                    value = format
+                )
+            } ?: ConfigItem(
+                icon = Icons.Default.DateRange,
+                label = "Daily Notes Format",
+                value = "Not set (default: YYYY-MM-DD)"
+            )
+
+            config.attachmentsPath?.let { path ->
+                ConfigItem(
+                    icon = Icons.Default.AttachFile,
+                    label = "Attachments Path (Active)",
+                    value = path
+                )
+            } ?: ConfigItem(
+                icon = Icons.Default.AttachFile,
+                label = "Attachments Path (Active)",
+                value = "Not set (default: attachments)"
+            )
+
+            config.templatePath?.let { path ->
+                ConfigItem(
+                    icon = Icons.Default.Description,
+                    label = "Template Path",
+                    value = path
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            // Markdown Settings Section
+            Text(
+                text = "Markdown Settings",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Code,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Use Front Matter",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (config.useFrontMatter) "Enabled" else "Disabled",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    if (config.useFrontMatter) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = if (config.useFrontMatter) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Link,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Preserve Obsidian Links",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (config.preserveObsidianLinks) "Enabled" else "Disabled",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    if (config.preserveObsidianLinks) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = if (config.preserveObsidianLinks) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            config.frontMatterTemplate?.let { template ->
+                ConfigItem(
+                    icon = Icons.Default.Description,
+                    label = "Front Matter Template",
+                    value = template
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            // Sync Settings Section
+            Text(
+                text = "Sync Settings",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            ConfigItem(
+                icon = Icons.Default.Sync,
+                label = "Sync Mode",
+                value = config.syncMode.toString()
+            )
+
+            ConfigItem(
+                icon = Icons.Default.Warning,
+                label = "Conflict Strategy",
+                value = config.conflictStrategy.toString().replace("_", " ")
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Visibility,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Watch for Changes",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (config.watchForChanges) "Enabled" else "Disabled",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    if (config.watchForChanges) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = if (config.watchForChanges) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            ConfigItem(
+                icon = Icons.Default.Timer,
+                label = "Auto Sync Interval",
+                value = "${config.autoSyncIntervalMinutes} minutes"
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            // Features Section
+            Text(
+                text = "Features",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Link,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Backlinks",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (config.enableBacklinks) "Enabled" else "Disabled",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    if (config.enableBacklinks) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = if (config.enableBacklinks) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.DataObject,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            text = "Template Variables",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (config.enableTemplateVariables) "Enabled" else "Disabled",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    if (config.enableTemplateVariables) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                    contentDescription = null,
+                    tint = if (config.enableTemplateVariables) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
